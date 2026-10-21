@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RepositoryDetail: View {
     @Environment(BookmarkStore.self) private var bookmarks
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let repository: Repository
 
     var body: some View {
@@ -11,18 +12,21 @@ struct RepositoryDetail: View {
                 Text(repository.fullName)
                     .font(.title)
                     .multilineTextAlignment(.center)
-                HStack(alignment: .top) {
-                    Text(repository.language.map { "Written in \($0)" } ?? "")
-                        .font(.headline)
-                    Spacer(minLength: 24)
-                    VStack(alignment: .trailing, spacing: 16) {
-                        Text("\(repository.stargazersCount) stars")
-                        Text("\(repository.watchersCount) watchers")
-                        Text("\(repository.forksCount) forks")
-                        Text("\(repository.openIssuesCount) open issues")
+                    .fixedSize(horizontal: false, vertical: true)
+                ViewThatFits(in: .horizontal) {
+                    if !dynamicTypeSize.isAccessibilitySize {
+                        HStack(alignment: .top, spacing: 24) {
+                            language
+                            statistics(alignment: .trailing)
+                        }
+                        .fixedSize(horizontal: true, vertical: false)
                     }
-                    .font(.subheadline)
+                    VStack(alignment: .leading, spacing: 20) {
+                        language
+                        statistics(alignment: .leading)
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 Button(bookmarks.contains(repository) ? "Remove from Bookmark" : "Add to Bookmark") {
                     bookmarks.toggle(repository)
                 }
@@ -34,6 +38,25 @@ struct RepositoryDetail: View {
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var language: some View {
+        Text(repository.language.map { "Written in \($0)" } ?? "")
+            .font(.headline)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("detailLanguage")
+    }
+
+    private func statistics(alignment: HorizontalAlignment) -> some View {
+        VStack(alignment: alignment, spacing: 16) {
+            Text("\(repository.stargazersCount) stars")
+                .accessibilityIdentifier("detailStars")
+            Text("\(repository.watchersCount) watchers")
+            Text("\(repository.forksCount) forks")
+            Text("\(repository.openIssuesCount) open issues")
+        }
+        .font(.subheadline)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 

@@ -64,6 +64,11 @@ struct UITestRepositoryService: RepositorySearching {
         case "slow":
             try await Task.sleep(for: .seconds(30))
             return try await PreviewRepositoryService().search(query: query)
+        case "layout":
+            return [Repository(fullName: "example/a-repository-with-a-very-long-name-for-accessibility",
+                               language: "JavaScript", stargazersCount: 123456789,
+                               watchersCount: 987654321, forksCount: 123456789,
+                               openIssuesCount: 987654321, owner: .init(avatarUrl: ""))]
         default: return try await PreviewRepositoryService().search(query: query)
         }
     }

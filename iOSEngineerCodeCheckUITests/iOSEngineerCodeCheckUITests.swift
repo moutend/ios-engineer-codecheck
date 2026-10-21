@@ -6,10 +6,13 @@ final class iOSEngineerCodeCheckUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    private func launchApp(loadFailure: Bool = false) -> XCUIApplication {
+    private func launchApp(loadFailure: Bool = false, largeText: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["BOOKMARK_UI_TEST_ID"] = UUID().uuidString
         if loadFailure { app.launchEnvironment["BOOKMARK_UI_TEST_LOAD_FAILURE"] = "1" }
+        if largeText {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        }
         app.launch()
         return app
     }
@@ -68,6 +71,35 @@ final class iOSEngineerCodeCheckUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Add to Bookmark"].isEnabled)
         app.buttons["Add to Bookmark"].tap()
         XCTAssertTrue(app.buttons["Remove from Bookmark"].exists)
+    }
+
+    func testLongContentAtLargestTextSizeRemainsReadableAndBookmarkable() {
+        let app = launchApp(largeText: true)
+        search("layout", in: app)
+        let name = app.staticTexts["repositoryName"]
+        let language = app.staticTexts["repositoryLanguage"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        XCTAssertTrue(language.exists)
+        XCTAssertGreaterThanOrEqual(language.frame.minY, name.frame.maxY)
+        XCTAssertLessThanOrEqual(name.frame.maxX, app.frame.maxX)
+        name.tap()
+        let detailLanguage = app.staticTexts["detailLanguage"]
+        let stars = app.staticTexts["detailStars"]
+        for _ in 0..<10 {
+            if stars.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(stars.isHittable)
+        XCTAssertGreaterThanOrEqual(stars.frame.minY, detailLanguage.frame.maxY)
+        XCTAssertLessThanOrEqual(stars.frame.maxX, app.frame.maxX)
+        let add = app.buttons["Add to Bookmark"]
+        for _ in 0..<10 {
+            if add.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(add.isHittable)
+        add.tap()
+        XCTAssertTrue(app.buttons["Remove from Bookmark"].waitForExistence(timeout: 5))
     }
 
     func testBookmarkRemovalKeepsDetailAndSynchronizesTabsAndRelaunch() throws {
