@@ -81,6 +81,7 @@ class Run:
         self.started = time.monotonic()
         stages = ([] if args.command == "script-test" else ["doctor"]) + PLANS[args.command]
         self.report = {"command": args.command, "fresh": args.fresh, "only": args.only,
+                       "diagnostics": args.diagnostics,
                        "status": "running", "steps": [{"name": name, "status": "not-run"} for name in stages]}
         self.derived = self.path / "DerivedData" if args.fresh else output / "DerivedData"
         if self.derived.is_symlink():
@@ -159,6 +160,7 @@ class Run:
             target = UNIT if stage == "test-unit" else UI
             selector = target + ("/" + self.args.only if self.args.only else "")
             self.command(argv + ["test", "-parallel-testing-enabled", "NO", "-resultBundlePath", bundle,
+                                 "-collect-test-diagnostics", "on-failure" if self.args.diagnostics else "never",
                                  "-test-timeouts-enabled", "YES", "-maximum-test-execution-time-allowance", "180",
                                  "-only-testing:" + selector])
             raw = self.command(["xcrun", "xcresulttool", "get", "test-results", "summary", "--path", bundle], True)
@@ -215,12 +217,15 @@ def main():
     parser.add_argument("command", choices=PLANS)
     parser.add_argument("--fresh", action="store_true", help="Use a new DerivedData inside this run; delete nothing")
     parser.add_argument("--only", help="test-unit/test-ui only: Suite[/testMethod], without target prefix")
+    parser.add_argument("--diagnostics", action="store_true", help="Collect slow, verbose Simulator diagnostics on test failure")
     args = parser.parse_args()
     if args.only is not None and (args.command not in ("test-unit", "test-ui") or args.only.startswith("-")
                                  or not re.fullmatch(r"[A-Za-z0-9_]+(?:/[A-Za-z0-9_]+(?:\(\))?)?", args.only)):
         parser.error("--only requires test-unit or test-ui and Suite[/testMethod]")
     if args.fresh and args.command in ("doctor", "format", "format-check", "script-test"):
         parser.error("--fresh requires a build/test command")
+    if args.diagnostics and args.command not in ("test-unit", "test-ui", "check-fast", "check-all"):
+        parser.error("--diagnostics requires a test command")
     try:
         run = Run(args)
         # A checkout has one writer: protect cached builds and format/check from each other.

@@ -101,7 +101,8 @@ class DevTests(unittest.TestCase):
 
     def test_invalid_arguments_exit_two_before_output(self):
         for args in (("unknown",), ("check-all", "--only", "Suite"), ("test-unit", "--only", "-x"),
-                     ("format", "--fresh"), ("test-ui", "--only", "Suite;bad"), ("test-unit", "--only", "")):
+                     ("format", "--fresh"), ("test-ui", "--only", "Suite;bad"), ("test-unit", "--only", ""),
+                     ("build", "--diagnostics")):
             with self.subTest(args=args):
                 self.assertEqual(self.invoke(*args).returncode, 2)
         self.assertFalse((self.root / ".dev").exists())
@@ -161,13 +162,15 @@ class DevTests(unittest.TestCase):
         self.assertEqual(report["environment"]["simulator"]["udid"], "A")
         self.assertIn("-configuration Release", (path / "build-release.log").read_text())
         self.assertIn("-only-testing:iOSEngineerCodeCheckUITests", (path / "test-ui.log").read_text())
+        self.assertIn("-collect-test-diagnostics never", (path / "test-ui.log").read_text())
 
     def test_explicit_simulator_and_selector(self):
-        self.assertEqual(self.invoke("test-unit", "--only", "Suite/method()",
+        self.assertEqual(self.invoke("test-unit", "--only", "Suite/method()", "--diagnostics",
                                      extra_env={"DEV_SIMULATOR_UDID": "B"}).returncode, 0)
         path, report = self.report()
         self.assertEqual(report["environment"]["simulator"]["udid"], "B")
         self.assertIn("-only-testing:iOSEngineerCodeCheckTests/Suite/method()", (path / "test-unit.log").read_text())
+        self.assertIn("-collect-test-diagnostics on-failure", (path / "test-unit.log").read_text())
         self.assertNotEqual(self.invoke("doctor", extra_env={"DEV_SIMULATOR_UDID": "absent"}).returncode, 0)
 
     def test_runs_are_unique_and_fresh_does_not_delete_cache(self):
