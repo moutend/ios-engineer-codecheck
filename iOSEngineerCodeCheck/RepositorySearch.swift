@@ -80,7 +80,11 @@ final class RepositorySearch {
         task = Task { [weak self] in
             do {
                 let repositories = try await service.search(query: query)
-                guard !Task.isCancelled, let self, self.requestID == id else { return }
+                guard let self, self.requestID == id else { return }
+                guard !Task.isCancelled else {
+                    self.phase = .idle
+                    return
+                }
                 self.repositories = repositories
                 self.phase = .loaded
             } catch {

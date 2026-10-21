@@ -289,6 +289,18 @@ struct RepositorySearchTests {
         #expect(search.phase == .loaded)
     }
 
+    @Test func cancelledTaskWithSuccessfulResponseStopsLoading() async throws {
+        let service = ControlledSearch()
+        let search = RepositorySearch(service: service)
+        let task = try #require(search.submit("swift"))
+        await service.waitForRequest("swift")
+        task.cancel()
+        await service.complete("swift", with: .success([repository()]))
+        await task.value
+        #expect(search.phase == .idle)
+        #expect(search.repositories.isEmpty)
+    }
+
     @Test func cancellationIsNotPresentedAsFailure() async throws {
         let service = ControlledSearch()
         let search = RepositorySearch(service: service)
