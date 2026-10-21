@@ -242,6 +242,65 @@ struct RepositorySearchTests {
         #expect(search.phase == .loaded)
     }
 
+    @Test(arguments: [false, true])
+    func editingInputInvalidatesPendingSuccessAndFailure(fails: Bool) async throws {
+        let service = ControlledSearch()
+        let search = RepositorySearch(service: service)
+        let task = try #require(search.submit("swift"))
+        await service.waitForRequest("swift")
+        search.inputChanged("kotlin")
+        #expect(search.phase == .idle)
+        await service.complete("swift", with: fails
+            ? .failure(URLError(.notConnectedToInternet)) : .success([repository()]))
+        await task.value
+        #expect(search.phase == .idle)
+        #expect(search.repositories.isEmpty)
+    }
+
+    @Test(arguments: [false, true])
+    func editingInputClearsCompletedResultsAndErrors(fails: Bool) async throws {
+        let service = ControlledSearch()
+        let search = RepositorySearch(service: service)
+        let task = try #require(search.submit("swift"))
+        await service.waitForRequest("swift")
+        await service.complete("swift", with: fails
+            ? .failure(URLError(.notConnectedToInternet)) : .success([repository()]))
+        await task.value
+        let completedPhase = search.phase
+        search.inputChanged(" swift ")
+        #expect(search.phase == completedPhase)
+        search.inputChanged("kotlin")
+        #expect(search.phase == .idle)
+        #expect(search.repositories.isEmpty)
+    }
+
+    @Test func obsoleteFailureCannotReplaceNewResults() async throws {
+        let service = ControlledSearch()
+        let search = RepositorySearch(service: service)
+        let old = try #require(search.submit("old"))
+        await service.waitForRequest("old")
+        let new = try #require(search.submit("new"))
+        await service.waitForRequest("new")
+        await service.complete("new", with: .success([repository("new/result")]))
+        await new.value
+        await service.complete("old", with: .failure(URLError(.timedOut)))
+        await old.value
+        #expect(search.repositories == [repository("new/result")])
+        #expect(search.phase == .loaded)
+    }
+
+    @Test func cancelledTaskWithSuccessfulResponseStopsLoading() async throws {
+        let service = ControlledSearch()
+        let search = RepositorySearch(service: service)
+        let task = try #require(search.submit("swift"))
+        await service.waitForRequest("swift")
+        task.cancel()
+        await service.complete("swift", with: .success([repository()]))
+        await task.value
+        #expect(search.phase == .idle)
+        #expect(search.repositories.isEmpty)
+    }
+
     @Test func cancellationIsNotPresentedAsFailure() async throws {
         let service = ControlledSearch()
         let search = RepositorySearch(service: service)
@@ -306,9 +365,20 @@ struct GitHubRepositoryServiceTests {
         }
     }
 
-    @Test func rejectsMalformedResponse() async {
-        let service = service(query: "malformed", body: "{\"items\":[{}]}")
+    @Test func duplicateResponseIdentitiesProduceOneRow() async throws {
+        let item = """
+        {"full_name":"owner/repository","language":null,"stargazers_count":1,
+        "watchers_count":2,"forks_count":3,"open_issues_count":4,"owner":{"avatar_url":"invalid avatar"}}
+        """
+        let service = service(query: "duplicates", body: "{\"items\":[\(item),\(item)]}")
         defer { service.session.invalidateAndCancel() }
-        await #expect(throws: DecodingError.self) { try await service.search(query: "malformed") }
+        #expect(try await service.search(query: "duplicates") == [repository()])
+    }
+
+    @Test(arguments: ["not JSON", "{}", "{\"items\":null}", "{\"items\":[{}]}"])
+    func rejectsMalformedResponse(body: String) async {
+        let service = service(query: "malformed-" + body, body: body)
+        defer { service.session.invalidateAndCancel() }
+        await #expect(throws: DecodingError.self) { try await service.search(query: "malformed-" + body) }
     }
 }

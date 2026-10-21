@@ -28,7 +28,9 @@ struct GitHubRepositoryService: RepositorySearching {
         }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return try decoder.decode(SearchResponse.self, from: data).items
+        let items = try decoder.decode(SearchResponse.self, from: data).items
+        var seen = Set<Repository.ID>()
+        return items.filter { seen.insert($0.id).inserted }
     }
 
     private struct SearchResponse: Decodable {
@@ -58,6 +60,7 @@ final class RepositorySearch {
 
     private let service: any RepositorySearching
     private var requestID = UUID()
+    private var submittedQuery: String?
     private var task: Task<Void, Never>?
     private(set) var repositories: [Repository] = []
     private(set) var phase: Phase = .idle
@@ -72,13 +75,18 @@ final class RepositorySearch {
         clear()
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return nil }
+        submittedQuery = query
         phase = .loading
         let id = requestID
         let service = service
         task = Task { [weak self] in
             do {
                 let repositories = try await service.search(query: query)
-                guard !Task.isCancelled, let self, self.requestID == id else { return }
+                guard let self, self.requestID == id else { return }
+                guard !Task.isCancelled else {
+                    self.phase = .idle
+                    return
+                }
                 self.repositories = repositories
                 self.phase = .loaded
             } catch {
@@ -93,9 +101,17 @@ final class RepositorySearch {
         return task
     }
 
+    // Editing invalidates the previous submission without starting a new request.
+    func inputChanged(_ text: String) {
+        if text.trimmingCharacters(in: .whitespacesAndNewlines) != submittedQuery {
+            clear()
+        }
+    }
+
     func clear() {
         task?.cancel()
         task = nil
+        submittedQuery = nil
         requestID = UUID()
         repositories = []
         phase = .idle

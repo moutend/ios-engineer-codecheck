@@ -9,15 +9,10 @@ struct RepositoryList: View {
             LazyVStack(spacing: 0) {
                 ForEach(repositories) { repository in
                     NavigationLink(value: repository) {
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(repository.fullName)
-                            Spacer(minLength: 16)
-                            Text(repository.language ?? "")
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        RepositoryRow(repository: repository)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     Divider()
                 }
@@ -34,5 +29,41 @@ struct RepositoryList: View {
                     .padding()
             }
         }
+    }
+}
+
+private struct RepositoryRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let repository: Repository
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            if !dynamicTypeSize.isAccessibilitySize {
+                HStack(alignment: .firstTextBaseline, spacing: 16) {
+                    name
+                    Spacer(minLength: 0)
+                    language
+                }
+                .fixedSize(horizontal: true, vertical: false)
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                name
+                language
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var name: some View {
+        Text(repository.fullName)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("repositoryName")
+    }
+
+    private var language: some View {
+        Text(repository.language ?? "")
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("repositoryLanguage")
     }
 }

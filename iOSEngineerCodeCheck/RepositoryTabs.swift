@@ -17,7 +17,8 @@ struct RepositoryTabs: View {
         TabView(selection: $selectedTab) {
             NavigationStack {
                 RepositoryList(repositories: bookmarks.repositories,
-                               emptyMessage: "ブックマークはまだありません")
+                               emptyMessage: bookmarks.isLoaded
+                                ? "ブックマークはまだありません" : "ブックマークを読み込めませんでした")
                     .navigationTitle("Bookmarks")
                     .navigationBarTitleDisplayMode(.inline)
                     .safeAreaInset(edge: .top) {
@@ -58,7 +59,7 @@ private struct RepositorySearchScreen: View {
         case .idle: "GitHubのリポジトリを検索できます"
         case .loading: ""
         case .loaded: "該当するリポジトリはありません"
-        case .failed(let message): message
+        case .failed(let message): "検索に失敗しました。\n\(message)"
         }
     }
 
@@ -81,7 +82,7 @@ private struct RepositorySearchScreen: View {
                 if search.phase == .loading { ProgressView() }
             }
             .onChange(of: query) { _, value in
-                if value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { search.clear() }
+                search.inputChanged(value)
             }
             .onDisappear { isSearchFocused = false }
     }
