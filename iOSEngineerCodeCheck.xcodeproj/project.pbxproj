@@ -7,14 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		4F8F302B2CFA100100A8C301 /* View1.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F8F302A2CFA100100A8C301 /* View1.swift */; };
-		A1B2C3D42CFA200100ABC001 /* DataItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D32CFA200100ABC001 /* DataItem.swift */; };
-		A1B2C3D82CFA200100ABC001 /* View2.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D72CFA200100ABC001 /* View2.swift */; };
-		A1B2C3DA2CFA200100ABC001 /* View3.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D92CFA200100ABC001 /* View3.swift */; };
+		4F8F302B2CFA100100A8C301 /* RepositoryTabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F8F302A2CFA100100A8C301 /* RepositoryTabs.swift */; };
+		A1B2C3D42CFA200100ABC001 /* Repository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D32CFA200100ABC001 /* Repository.swift */; };
+		A1B2C3D82CFA200100ABC001 /* RepositoryList.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D72CFA200100ABC001 /* RepositoryList.swift */; };
+		A1B2C3DA2CFA200100ABC001 /* RepositoryDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D92CFA200100ABC001 /* RepositoryDetail.swift */; };
 		BFD945DF244DC5E80012785A /* iOSEngineerCodeCheckApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFD945DE244DC5E80012785A /* iOSEngineerCodeCheckApp.swift */; };
 		BFD945E8244DC5EB0012785A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BFD945E7244DC5EB0012785A /* Assets.xcassets */; };
 		BFD945F6244DC5EB0012785A /* iOSEngineerCodeCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFD945F5244DC5EB0012785A /* iOSEngineerCodeCheckTests.swift */; };
 		BFD94601244DC5EC0012785A /* iOSEngineerCodeCheckUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFD94600244DC5EC0012785A /* iOSEngineerCodeCheckUITests.swift */; };
+		ABC100000000000000000001 /* RepositorySearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC000000000000000000001; };
+		ABC100000000000000000002 /* BookmarkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC000000000000000000002; };
+		ABC100000000000000000003 /* BookmarkPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC000000000000000000003; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -35,10 +38,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		4F8F302A2CFA100100A8C301 /* View1.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = View1.swift; sourceTree = "<group>"; };
-		A1B2C3D32CFA200100ABC001 /* DataItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataItem.swift; sourceTree = "<group>"; };
-		A1B2C3D72CFA200100ABC001 /* View2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = View2.swift; sourceTree = "<group>"; };
-		A1B2C3D92CFA200100ABC001 /* View3.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = View3.swift; sourceTree = "<group>"; };
+		4F8F302A2CFA100100A8C301 /* RepositoryTabs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryTabs.swift; sourceTree = "<group>"; };
+		A1B2C3D32CFA200100ABC001 /* Repository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repository.swift; sourceTree = "<group>"; };
+		A1B2C3D72CFA200100ABC001 /* RepositoryList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryList.swift; sourceTree = "<group>"; };
+		A1B2C3D92CFA200100ABC001 /* RepositoryDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryDetail.swift; sourceTree = "<group>"; };
 		BFD945DB244DC5E80012785A /* iOSEngineerCodeCheck.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iOSEngineerCodeCheck.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BFD945DE244DC5E80012785A /* iOSEngineerCodeCheckApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSEngineerCodeCheckApp.swift; sourceTree = "<group>"; };
 		BFD945E7244DC5EB0012785A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -49,6 +52,9 @@
 		BFD945FC244DC5EB0012785A /* iOSEngineerCodeCheckUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iOSEngineerCodeCheckUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BFD94600244DC5EC0012785A /* iOSEngineerCodeCheckUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSEngineerCodeCheckUITests.swift; sourceTree = "<group>"; };
 		BFD94602244DC5EC0012785A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		ABC000000000000000000001 /* RepositorySearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositorySearch.swift; sourceTree = "<group>"; };
+		ABC000000000000000000002 /* BookmarkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkStore.swift; sourceTree = "<group>"; };
+		ABC000000000000000000003 /* BookmarkPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkPersistence.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -99,11 +105,14 @@
 		BFD945DD244DC5E80012785A /* iOSEngineerCodeCheck */ = {
 			isa = PBXGroup;
 			children = (
+				ABC000000000000000000001 /* RepositorySearch.swift */,
+				ABC000000000000000000002 /* BookmarkStore.swift */,
+				ABC000000000000000000003 /* BookmarkPersistence.swift */,
 				BFD945DE244DC5E80012785A /* iOSEngineerCodeCheckApp.swift */,
-				A1B2C3D32CFA200100ABC001 /* DataItem.swift */,
-				4F8F302A2CFA100100A8C301 /* View1.swift */,
-				A1B2C3D72CFA200100ABC001 /* View2.swift */,
-				A1B2C3D92CFA200100ABC001 /* View3.swift */,
+				A1B2C3D32CFA200100ABC001 /* Repository.swift */,
+				4F8F302A2CFA100100A8C301 /* RepositoryTabs.swift */,
+				A1B2C3D72CFA200100ABC001 /* RepositoryList.swift */,
+				A1B2C3D92CFA200100ABC001 /* RepositoryDetail.swift */,
 				BFD945E7244DC5EB0012785A /* Assets.xcassets */,
 				BFD945EC244DC5EB0012785A /* Info.plist */,
 			);
@@ -258,10 +267,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1B2C3D42CFA200100ABC001 /* DataItem.swift in Sources */,
-				4F8F302B2CFA100100A8C301 /* View1.swift in Sources */,
-				A1B2C3D82CFA200100ABC001 /* View2.swift in Sources */,
-				A1B2C3DA2CFA200100ABC001 /* View3.swift in Sources */,
+				A1B2C3D42CFA200100ABC001 /* Repository.swift in Sources */,
+				4F8F302B2CFA100100A8C301 /* RepositoryTabs.swift in Sources */,
+				A1B2C3D82CFA200100ABC001 /* RepositoryList.swift in Sources */,
+				A1B2C3DA2CFA200100ABC001 /* RepositoryDetail.swift in Sources */,
+				ABC100000000000000000001 /* RepositorySearch.swift in Sources */,
+				ABC100000000000000000002 /* BookmarkStore.swift in Sources */,
+				ABC100000000000000000003 /* BookmarkPersistence.swift in Sources */,
 				BFD945DF244DC5E80012785A /* iOSEngineerCodeCheckApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
