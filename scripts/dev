@@ -216,8 +216,8 @@ def main():
     parser.add_argument("--fresh", action="store_true", help="Use a new DerivedData inside this run; delete nothing")
     parser.add_argument("--only", help="test-unit/test-ui only: Suite[/testMethod], without target prefix")
     args = parser.parse_args()
-    if args.only and (args.command not in ("test-unit", "test-ui") or args.only.startswith("-")
-                      or not re.fullmatch(r"[A-Za-z0-9_]+(?:/[A-Za-z0-9_]+(?:\(\))?)?", args.only)):
+    if args.only is not None and (args.command not in ("test-unit", "test-ui") or args.only.startswith("-")
+                                 or not re.fullmatch(r"[A-Za-z0-9_]+(?:/[A-Za-z0-9_]+(?:\(\))?)?", args.only)):
         parser.error("--only requires test-unit or test-ui and Suite[/testMethod]")
     if args.fresh and args.command in ("doctor", "format", "format-check", "script-test"):
         parser.error("--fresh requires a build/test command")

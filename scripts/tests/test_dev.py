@@ -84,7 +84,7 @@ class DevTests(unittest.TestCase):
 
     def invoke(self, *args, mode="", extra_env=None):
         env = dict(os.environ, PATH=str(self.bin) + os.pathsep + os.environ["PATH"], STUB_MODE=mode)
-        for name in ("DEV_SIMULATOR_UDID", "DEV_RUNTIME", "DEVELOPER_DIR"):
+        for name in ("DEV_SIMULATOR_UDID", "DEV_RUNTIME", "DEVELOPER_DIR", "TOOLCHAINS"):
             env.pop(name, None)
         env.update(extra_env or {})
         result = subprocess.run([sys.executable, "-B", str(self.root / "scripts" / "dev"), *args],
@@ -101,7 +101,7 @@ class DevTests(unittest.TestCase):
 
     def test_invalid_arguments_exit_two_before_output(self):
         for args in (("unknown",), ("check-all", "--only", "Suite"), ("test-unit", "--only", "-x"),
-                     ("format", "--fresh"), ("test-ui", "--only", "Suite;bad")):
+                     ("format", "--fresh"), ("test-ui", "--only", "Suite;bad"), ("test-unit", "--only", "")):
             with self.subTest(args=args):
                 self.assertEqual(self.invoke(*args).returncode, 2)
         self.assertFalse((self.root / ".dev").exists())
