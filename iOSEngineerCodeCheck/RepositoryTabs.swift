@@ -7,8 +7,10 @@ struct RepositoryTabs: View {
 
     private enum Tab { case search, bookmarks }
 
-    init(service: any RepositorySearching = GitHubRepositoryService(),
-         persistence: any BookmarkPersistence = FileBookmarkPersistence()) {
+    init(
+        service: any RepositorySearching = GitHubRepositoryService(),
+        persistence: any BookmarkPersistence = FileBookmarkPersistence()
+    ) {
         _search = State(initialValue: RepositorySearch(service: service))
         _bookmarks = State(initialValue: BookmarkStore(persistence: persistence))
     }
@@ -16,17 +18,19 @@ struct RepositoryTabs: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             NavigationStack {
-                RepositoryList(repositories: bookmarks.repositories,
-                               emptyMessage: bookmarks.isLoaded
-                                ? "ブックマークはまだありません" : "ブックマークを読み込めませんでした")
-                    .navigationTitle("Bookmarks")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .safeAreaInset(edge: .top) {
-                        if !bookmarks.isLoaded {
-                            Button("ブックマークの読み込みを再試行", action: bookmarks.reload)
-                                .padding()
-                        }
+                RepositoryList(
+                    repositories: bookmarks.repositories,
+                    emptyMessage: bookmarks.isLoaded
+                        ? "ブックマークはまだありません" : "ブックマークを読み込めませんでした"
+                )
+                .navigationTitle("Bookmarks")
+                .navigationBarTitleDisplayMode(.inline)
+                .safeAreaInset(edge: .top) {
+                    if !bookmarks.isLoaded {
+                        Button("ブックマークの読み込みを再試行", action: bookmarks.reload)
+                            .padding()
                     }
+                }
             }
             .tabItem { Label("Bookmark", systemImage: "bookmark.fill") }
             .tag(Tab.bookmarks)
@@ -38,10 +42,13 @@ struct RepositoryTabs: View {
             .tag(Tab.search)
         }
         .environment(bookmarks)
-        .alert("ブックマークのエラー", isPresented: Binding(
-            get: { bookmarks.errorMessage != nil },
-            set: { if !$0 { bookmarks.dismissError() } }
-        )) {
+        .alert(
+            "ブックマークのエラー",
+            isPresented: Binding(
+                get: { bookmarks.errorMessage != nil },
+                set: { if !$0 { bookmarks.dismissError() } }
+            )
+        ) {
             Button("OK", role: .cancel, action: bookmarks.dismissError)
         } message: {
             Text(bookmarks.errorMessage ?? "")

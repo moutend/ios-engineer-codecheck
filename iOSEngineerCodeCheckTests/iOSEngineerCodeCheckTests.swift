@@ -4,8 +4,9 @@ import Testing
 @testable import iOSEngineerCodeCheck
 
 private func repository(_ name: String = "owner/repository", stars: Int = 1) -> Repository {
-    Repository(fullName: name, language: nil, stargazersCount: stars, watchersCount: 2,
-               forksCount: 3, openIssuesCount: 4, owner: .init(avatarUrl: "invalid avatar"))
+    Repository(
+        fullName: name, language: nil, stargazersCount: stars, watchersCount: 2,
+        forksCount: 3, openIssuesCount: 4, owner: .init(avatarUrl: "invalid avatar"))
 }
 
 @MainActor
@@ -107,7 +108,8 @@ struct BookmarkPersistenceTests {
             defaults.removePersistentDomain(forName: suite)
             try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
         }
-        var object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(repository())) as? [String: Any])
+        var object = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(repository())) as? [String: Any])
         object["marked"] = false
         let data = try JSONSerialization.data(withJSONObject: [object])
         defaults.set(data, forKey: "data")
@@ -149,8 +151,9 @@ struct BookmarkPersistenceTests {
     @Test func fileWriteFailureIsPropagated() throws {
         let parent = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: parent) }
-        try Data().write(to: parent) // A file cannot be used as a parent directory.
-        let persistence = FileBookmarkPersistence(fileURL: parent.appending(path: "bookmarks.json"), legacyDefaults: nil)
+        try Data().write(to: parent)  // A file cannot be used as a parent directory.
+        let persistence = FileBookmarkPersistence(
+            fileURL: parent.appending(path: "bookmarks.json"), legacyDefaults: nil)
         #expect(throws: (any Error).self) { try persistence.save([repository()]) }
     }
 }
@@ -250,8 +253,10 @@ struct RepositorySearchTests {
         await service.waitForRequest("swift")
         search.inputChanged("kotlin")
         #expect(search.phase == .idle)
-        await service.complete("swift", with: fails
-            ? .failure(URLError(.notConnectedToInternet)) : .success([repository()]))
+        await service.complete(
+            "swift",
+            with: fails
+                ? .failure(URLError(.notConnectedToInternet)) : .success([repository()]))
         await task.value
         #expect(search.phase == .idle)
         #expect(search.repositories.isEmpty)
@@ -263,8 +268,10 @@ struct RepositorySearchTests {
         let search = RepositorySearch(service: service)
         let task = try #require(search.submit("swift"))
         await service.waitForRequest("swift")
-        await service.complete("swift", with: fails
-            ? .failure(URLError(.notConnectedToInternet)) : .success([repository()]))
+        await service.complete(
+            "swift",
+            with: fails
+                ? .failure(URLError(.notConnectedToInternet)) : .success([repository()]))
         await task.value
         let completedPhase = search.phase
         search.inputChanged(" swift ")
@@ -319,13 +326,14 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         guard let url = request.url,
-              url.host == "api.github.com", url.path == "/search/repositories",
-              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              components.queryItems?.count == 1,
-              components.percentEncodedQuery?.contains("+") == false,
-              let query = components.queryItems?.first(where: { $0.name == "q" })?.value,
-              let stub = Self.stubs.withLock({ $0[query] }),
-              let response = HTTPURLResponse(url: url, statusCode: stub.status, httpVersion: nil, headerFields: nil) else {
+            url.host == "api.github.com", url.path == "/search/repositories",
+            let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+            components.queryItems?.count == 1,
+            components.percentEncodedQuery?.contains("+") == false,
+            let query = components.queryItems?.first(where: { $0.name == "q" })?.value,
+            let stub = Self.stubs.withLock({ $0[query] }),
+            let response = HTTPURLResponse(url: url, statusCode: stub.status, httpVersion: nil, headerFields: nil)
+        else {
             client?.urlProtocol(self, didFailWithError: URLError(.badURL))
             return
         }
@@ -346,10 +354,12 @@ struct GitHubRepositoryServiceTests {
 
     @Test func decodesSnakeCaseAndKeepsReservedCharactersInOneQueryValue() async throws {
         let query = "日本語 C++ & #swift?=yes"
-        let service = service(query: query, body: """
-        {"items":[{"full_name":"owner/repository","language":null,"stargazers_count":1,
-        "watchers_count":2,"forks_count":3,"open_issues_count":4,"owner":{"avatar_url":"invalid avatar"}}]}
-        """)
+        let service = service(
+            query: query,
+            body: """
+                {"items":[{"full_name":"owner/repository","language":null,"stargazers_count":1,
+                "watchers_count":2,"forks_count":3,"open_issues_count":4,"owner":{"avatar_url":"invalid avatar"}}]}
+                """)
         defer { service.session.invalidateAndCancel() }
         #expect(try await service.search(query: query) == [repository()])
         #expect(repository().avatarURL == nil)
@@ -367,9 +377,9 @@ struct GitHubRepositoryServiceTests {
 
     @Test func duplicateResponseIdentitiesProduceOneRow() async throws {
         let item = """
-        {"full_name":"owner/repository","language":null,"stargazers_count":1,
-        "watchers_count":2,"forks_count":3,"open_issues_count":4,"owner":{"avatar_url":"invalid avatar"}}
-        """
+            {"full_name":"owner/repository","language":null,"stargazers_count":1,
+            "watchers_count":2,"forks_count":3,"open_issues_count":4,"owner":{"avatar_url":"invalid avatar"}}
+            """
         let service = service(query: "duplicates", body: "{\"items\":[\(item),\(item)]}")
         defer { service.session.invalidateAndCancel() }
         #expect(try await service.search(query: "duplicates") == [repository()])

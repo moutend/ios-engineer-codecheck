@@ -12,8 +12,10 @@ struct FileBookmarkPersistence: BookmarkPersistence {
     let fileURL: URL
     let legacyDefaults: UserDefaults?
 
-    init(fileURL: URL = URL.applicationSupportDirectory.appending(path: "bookmarks.json"),
-         legacyDefaults: UserDefaults? = .standard) {
+    init(
+        fileURL: URL = URL.applicationSupportDirectory.appending(path: "bookmarks.json"),
+        legacyDefaults: UserDefaults? = .standard
+    ) {
         self.fileURL = fileURL
         self.legacyDefaults = legacyDefaults
     }
@@ -34,8 +36,9 @@ struct FileBookmarkPersistence: BookmarkPersistence {
 
     func save(_ repositories: [Repository]) throws {
         let data = try JSONEncoder().encode(repositories)
-        try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(),
-                                                withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
         try data.write(to: fileURL, options: .atomic)
     }
 }

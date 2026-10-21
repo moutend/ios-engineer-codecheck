@@ -40,7 +40,9 @@ final class iOSEngineerCodeCheckUITests: XCTestCase {
         search("empty", in: app)
         XCTAssertTrue(app.staticTexts["該当するリポジトリはありません"].waitForExistence(timeout: 5))
         search("failure", in: app)
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "検索に失敗しました。")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "検索に失敗しました。")).firstMatch
+                .waitForExistence(timeout: 5))
         search("slow", in: app)
         XCTAssertTrue(app.activityIndicators.firstMatch.waitForExistence(timeout: 5))
         field.tap()

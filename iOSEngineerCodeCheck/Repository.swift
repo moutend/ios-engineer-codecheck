@@ -14,8 +14,9 @@ struct Repository: Hashable, Identifiable, Codable, Sendable {
 
     var avatarURL: URL? {
         guard let url = URL(string: owner.avatarUrl),
-              ["https", "http"].contains(url.scheme?.lowercased() ?? ""),
-              url.host != nil else { return nil }
+            ["https", "http"].contains(url.scheme?.lowercased() ?? ""),
+            url.host != nil
+        else { return nil }
         return url
     }
 
