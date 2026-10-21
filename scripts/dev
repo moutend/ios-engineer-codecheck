@@ -1,0 +1,241 @@
+#!/usr/bin/env python3
+"""Small local Xcode harness; Python standard library only."""
+import argparse
+import fcntl
+import json
+import os
+from pathlib import Path
+import platform
+import re
+import shlex
+import subprocess
+import sys
+import tempfile
+import time
+
+ROOT = Path(__file__).resolve().parent.parent
+PROJECT = "iOSEngineerCodeCheck"
+UNIT = PROJECT + "Tests"
+UI = PROJECT + "UITests"
+PLANS = {
+    "doctor": [],
+    "build": ["build"],
+    "build-release": ["build-release"],
+    "test-unit": ["test-unit"],
+    "test-ui": ["test-ui"],
+    "format": ["format"],
+    "format-check": ["format-check"],
+    "static-check": ["static-check"],
+    "check-fast": ["format-check", "script-test", "static-check", "test-unit"],
+    "check-all": ["format-check", "script-test", "static-check", "test-unit", "test-ui", "build-release"],
+    "script-test": ["script-test"],
+}
+
+
+class Failure(Exception):
+    def __init__(self, message, code=1):
+        super().__init__(message)
+        self.code = code if code > 0 else 128 - code
+
+
+def version(value):
+    return tuple(int(part) for part in value.split("."))
+
+
+def select_simulator(runtimes, devices, minimum, requested_os, requested_id):
+    candidates = []
+    for runtime in runtimes:
+        if not runtime.get("isAvailable") or runtime.get("platform") != "iOS":
+            continue
+        if version(runtime["version"]) < version(minimum):
+            continue
+        if not requested_id and runtime["version"] != requested_os:
+            continue
+        for device in devices.get(runtime["identifier"], []):
+            if not device.get("isAvailable"):
+                continue
+            if requested_id and device["udid"] != requested_id:
+                continue
+            if not requested_id and not device["name"].startswith("iPhone"):
+                continue
+            candidates.append({"name": device["name"], "udid": device["udid"],
+                               "runtime": runtime["version"], "state": device["state"]})
+    if not candidates:
+        raise Failure("No compatible Simulator. Install the iOS runtime in Xcode Settings > Components, "
+                      "create an iPhone in Devices and Simulators, or set DEV_SIMULATOR_UDID / DEV_RUNTIME.")
+    return sorted(candidates, key=lambda item: (item["name"], item["udid"]))[0]
+
+
+class Run:
+    def __init__(self, args):
+        self.args = args
+        output = ROOT / ".dev"
+        output.mkdir(exist_ok=True)
+        if output.is_symlink():
+            raise Failure("Refusing symlink output directory: .dev")
+        runs = output / "runs"
+        runs.mkdir(exist_ok=True)
+        if runs.is_symlink():
+            raise Failure("Refusing symlink output directory: .dev/runs")
+        self.path = Path(tempfile.mkdtemp(prefix=time.strftime("%Y%m%d-%H%M%S-") + args.command + "-", dir=runs))
+        self.started = time.monotonic()
+        stages = ([] if args.command == "script-test" else ["doctor"]) + PLANS[args.command]
+        self.report = {"command": args.command, "fresh": args.fresh, "only": args.only,
+                       "status": "running", "steps": [{"name": name, "status": "not-run"} for name in stages]}
+        self.derived = self.path / "DerivedData" if args.fresh else output / "DerivedData"
+        if self.derived.is_symlink():
+            raise Failure("Refusing symlink DerivedData")
+        self.log = None
+        self.save()
+        print(f"Results: {self.path}", flush=True)
+
+    def save(self):
+        self.report["seconds"] = round(time.monotonic() - self.started, 3)
+        temporary = self.path / "summary.tmp"
+        temporary.write_text(json.dumps(self.report, indent=2) + "\n")
+        temporary.replace(self.path / "summary.json")
+
+    def command(self, argv, capture=False):
+        argv = [str(arg) for arg in argv]
+        self.log.write("$ " + shlex.join(argv) + "\n")
+        self.log.flush()
+        # Direct file output preserves the child's status without a tee pipeline.
+        result = subprocess.run(argv, cwd=ROOT, stdout=subprocess.PIPE if capture else self.log,
+                                stderr=self.log, text=True)
+        if capture:
+            self.log.write(result.stdout)
+            self.log.flush()
+        if result.returncode:
+            raise Failure(f"Command exited {result.returncode}: {shlex.join(argv)}", result.returncode)
+        return result.stdout if capture else ""
+
+    def doctor(self):
+        config = json.loads((ROOT / ".dev-tools.json").read_text())
+        env = {"macOS": platform.mac_ver()[0], "architecture": platform.machine(),
+               "python": sys.version.split()[0], "developer_dir_override": os.environ.get("DEVELOPER_DIR")}
+        self.report["environment"] = env
+        try:
+            if os.environ.get("TOOLCHAINS"):
+                raise Failure("Unset TOOLCHAINS to use the pinned Xcode's bundled Swift and formatter.")
+            env["xcode"] = self.command(["xcodebuild", "-version"], True).strip()
+            env["developer_dir"] = self.command(["xcode-select", "-p"], True).strip()
+            env["swift"] = self.command(["xcrun", "swift", "--version"], True).strip()
+            env["formatter_path"] = self.command(["xcrun", "--find", "swift-format"], True).strip()
+            env["formatter_version"] = self.command(["xcrun", "swift-format", "--version"], True).strip()
+            env["sdk"] = self.command(["xcrun", "--sdk", "iphonesimulator", "--show-sdk-version"], True).strip()
+            self.command(["xcrun", "--find", "xcresulttool"], True)
+            expected = f"Xcode {config['xcode']}\nBuild version {config['xcode_build']}"
+            if env["xcode"] != expected:
+                raise Failure(f"Toolchain pin requires {expected!r}. Select that Xcode with DEVELOPER_DIR. "
+                              "Update .dev-tools.json only after revalidating formatting and tests.")
+            project = (ROOT / (PROJECT + ".xcodeproj") / "project.pbxproj").read_text()
+            minimum = max(re.findall(r"IPHONEOS_DEPLOYMENT_TARGET = ([0-9.]+);", project), key=version)
+            env["deployment_target"] = minimum
+            env["swift_language_modes"] = sorted(set(re.findall(r"SWIFT_VERSION = ([0-9.]+);", project)))
+            if version(env["sdk"]) < version(minimum):
+                raise Failure(f"Simulator SDK must be >= {minimum}. Install the required Xcode platform.")
+            runtimes = json.loads(self.command(["xcrun", "simctl", "list", "runtimes", "-j"], True))
+            devices = json.loads(self.command(["xcrun", "simctl", "list", "devices", "available", "-j"], True))
+            env["simulator"] = select_simulator(runtimes["runtimes"], devices["devices"], minimum,
+                                                os.environ.get("DEV_RUNTIME", config["runtime"]),
+                                                os.environ.get("DEV_SIMULATOR_UDID"))
+        except (OSError, Failure) as error:
+            raise Failure(f"{error}\nInstall/select full Xcode, complete first launch and install its Simulator runtime. "
+                          "If CoreSimulator is denied by a sandbox, allow this local build/test command to access it.",
+                          getattr(error, "code", 1)) from error
+        env["derived_data"] = str(self.derived)
+        print(json.dumps(env, indent=2), flush=True)
+
+    def xcode(self, stage):
+        simulator = self.report["environment"]["simulator"]
+        argv = ["xcodebuild", "-project", PROJECT + ".xcodeproj", "-scheme", PROJECT,
+                "-configuration", "Release" if stage == "build-release" else "Debug",
+                "-sdk", "iphonesimulator", "-destination", "platform=iOS Simulator,id=" + simulator["udid"],
+                "-destination-timeout", "60", "-derivedDataPath", self.derived,
+                "CODE_SIGNING_ALLOWED=NO", "CODE_SIGNING_REQUIRED=NO", "DEVELOPMENT_TEAM=",
+                "SWIFT_TREAT_WARNINGS_AS_ERRORS=YES", "GCC_TREAT_WARNINGS_AS_ERRORS=YES"]
+        if stage.startswith("test-"):
+            bundle = self.path / (stage + ".xcresult")
+            target = UNIT if stage == "test-unit" else UI
+            selector = target + ("/" + self.args.only if self.args.only else "")
+            self.command(argv + ["test", "-parallel-testing-enabled", "NO", "-resultBundlePath", bundle,
+                                 "-test-timeouts-enabled", "YES", "-maximum-test-execution-time-allowance", "180",
+                                 "-only-testing:" + selector])
+            raw = self.command(["xcrun", "xcresulttool", "get", "test-results", "summary", "--path", bundle], True)
+            (self.path / (stage + "-results.json")).write_text(raw)
+            result = json.loads(raw)
+            if (result.get("result") != "Passed" or result.get("passedTests", 0) < 1
+                    or result.get("failedTests", 0) or result.get("skippedTests", 0)):
+                raise Failure("Test result is not a complete pass (zero tests, failures or skipped tests). See xcresult.")
+        else:
+            self.command(argv + ["build"])
+
+    def stage(self, name):
+        if name == "doctor":
+            self.doctor()
+        elif name == "script-test":
+            self.command([sys.executable, "-B", "-m", "unittest", "discover", "-s", "scripts/tests", "-v"])
+        elif name in ("format", "format-check"):
+            self.command(["xcrun", "swift-format", "format" if name == "format" else "lint",
+                          "--in-place" if name == "format" else "--strict", "--configuration", ".swift-format",
+                          "--recursive", PROJECT, UNIT, UI])
+        else:
+            self.xcode(name)
+
+    def execute(self):
+        code = 0
+        for step in self.report["steps"]:
+            start = time.monotonic()
+            step.update(status="running", log=step["name"] + ".log")
+            self.save()
+            print(f"Running {step['name']} (log: {self.path / step['log']})", flush=True)
+            with (self.path / step["log"]).open("w") as self.log:
+                try:
+                    self.stage(step["name"])
+                except (Failure, OSError, ValueError, KeyError, KeyboardInterrupt) as error:
+                    code = 130 if isinstance(error, KeyboardInterrupt) else getattr(error, "code", 1)
+                    step.update(status="failed", error=str(error), exit_code=code)
+                    self.log.write(f"\nERROR: {error}\n")
+                    print(f"FAILED: {error}", file=sys.stderr)
+                else:
+                    step.update(status="passed", exit_code=0)
+            step["seconds"] = round(time.monotonic() - start, 3)
+            print(f"{step['name']}: {step['status']} ({step['seconds']}s)", flush=True)
+            self.save()
+            if code:
+                break
+        self.report.update(status="failed" if code else "passed", exit_code=code)
+        self.save()
+        print(f"{self.report['status']}: {self.report['seconds']}s; {self.path / 'summary.json'}", flush=True)
+        return code
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("command", choices=PLANS)
+    parser.add_argument("--fresh", action="store_true", help="Use a new DerivedData inside this run; delete nothing")
+    parser.add_argument("--only", help="test-unit/test-ui only: Suite[/testMethod], without target prefix")
+    args = parser.parse_args()
+    if args.only and (args.command not in ("test-unit", "test-ui") or args.only.startswith("-")
+                      or not re.fullmatch(r"[A-Za-z0-9_]+(?:/[A-Za-z0-9_]+(?:\(\))?)?", args.only)):
+        parser.error("--only requires test-unit or test-ui and Suite[/testMethod]")
+    if args.fresh and args.command in ("doctor", "format", "format-check", "script-test"):
+        parser.error("--fresh requires a build/test command")
+    try:
+        run = Run(args)
+        # A checkout has one writer: protect cached builds and format/check from each other.
+        with (ROOT / ".dev" / "lock").open("a") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                run.report.update(status="failed", exit_code=1, error="Another scripts/dev is running in this checkout")
+                run.save()
+                raise Failure(run.report["error"])
+            return run.execute()
+    except (OSError, Failure) as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return getattr(error, "code", 1)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

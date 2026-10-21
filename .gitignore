@@ -136,3 +136,6 @@ iOSInjectionProject/
 
 # Xcode derived-data access logs (local environment metadata)
 .derived-data-log-*
+
+# Local validation logs, xcresults and dedicated DerivedData
+/.dev/
