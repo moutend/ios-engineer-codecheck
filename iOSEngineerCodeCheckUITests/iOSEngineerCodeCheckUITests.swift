@@ -1,44 +1,61 @@
-//
-//  iOSEngineerCodeCheckUITests.swift
-//  iOSEngineerCodeCheckUITests
-//
-//  Created by 史 翔新 on 2020/04/20.
-//  Copyright © 2020 YUMEMI Inc. All rights reserved.
-//
-
 import XCTest
 
 @MainActor
-class iOSEngineerCodeCheckUITests: XCTestCase {
-
+final class iOSEngineerCodeCheckUITests: XCTestCase {
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-
-        // In UI tests it is usually best to stop immediately when a failure occurs.
         continueAfterFailure = false
-
-        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
     }
 
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
-    }
-
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testBookmarkRemovalKeepsDetailAndSynchronizesTabsAndRelaunch() throws {
         let app = XCUIApplication()
+        app.launchEnvironment["BOOKMARK_UI_TEST_ID"] = UUID().uuidString
         app.launch()
 
-        // Use recording to get started writing UI tests.
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-    }
+        let searchField = app.textFields["repositorySearchField"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.tap()
+        searchField.typeText("swift\n")
+        let result = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "example/swift")).firstMatch
+        XCTAssertTrue(result.waitForExistence(timeout: 5))
+        result.tap()
+        app.buttons["Add to Bookmark"].tap()
+        XCTAssertTrue(app.buttons["Remove from Bookmark"].exists)
 
-    func testLaunchPerformance() throws {
-        if #available(macOS 10.15, iOS 13.0, tvOS 13.0, *) {
-            // This measures how long it takes to launch your application.
-            measure(metrics: [XCTApplicationLaunchMetric()]) {
-                XCUIApplication().launch()
-            }
-        }
+        app.tabBars.buttons["Bookmark"].tap()
+        let bookmark = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "example/swift")).firstMatch
+        XCTAssertTrue(bookmark.waitForExistence(timeout: 5))
+        bookmark.tap()
+        app.buttons["Remove from Bookmark"].tap()
+        // Removing the source row must not pop or invalidate the displayed detail.
+        XCTAssertTrue(app.buttons["Add to Bookmark"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["42 stars"].exists)
+        app.tabBars.buttons["Search"].tap()
+        XCTAssertTrue(app.buttons["Add to Bookmark"].waitForExistence(timeout: 5))
+        app.tabBars.buttons["Bookmark"].tap()
+        XCTAssertTrue(app.buttons["Add to Bookmark"].exists)
+        app.buttons["Add to Bookmark"].tap()
+        XCTAssertTrue(app.buttons["Remove from Bookmark"].exists)
+
+        app.terminate()
+        app.launch()
+        app.tabBars.buttons["Bookmark"].tap()
+        XCTAssertTrue(bookmark.waitForExistence(timeout: 5))
+        bookmark.tap()
+        app.buttons["Remove from Bookmark"].tap()
+        XCTAssertTrue(app.buttons["Add to Bookmark"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["ブックマークはまだありません"].waitForExistence(timeout: 5))
+
+        app.tabBars.buttons["Search"].tap()
+        searchField.tap()
+        searchField.typeText("swift\n")
+        XCTAssertTrue(result.waitForExistence(timeout: 5))
+        result.tap()
+        XCTAssertTrue(app.buttons["Add to Bookmark"].exists)
+
+        app.terminate()
+        app.launch()
+        app.tabBars.buttons["Bookmark"].tap()
+        XCTAssertTrue(app.staticTexts["ブックマークはまだありません"].waitForExistence(timeout: 5))
     }
 }
