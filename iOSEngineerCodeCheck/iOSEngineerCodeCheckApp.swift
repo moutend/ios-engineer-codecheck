@@ -12,13 +12,7 @@ struct iOSEngineerCodeCheckApp: App {
     private var rootView: some View {
         #if DEBUG
         if let testID = ProcessInfo.processInfo.environment["BOOKMARK_UI_TEST_ID"] {
-            RepositoryTabs(service: UITestRepositoryService(), persistence: FileBookmarkPersistence(
-                fileURL: FileManager.default.temporaryDirectory
-                    .appending(path: "BookmarkUITests")
-                    .appending(path: testID)
-                    .appending(path: "bookmarks.json"),
-                legacyDefaults: nil
-            ))
+            RepositoryTabs(service: UITestRepositoryService(), persistence: uiTestPersistence(testID: testID))
         } else if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
             // The unit-test host must not read or migrate a developer's bookmarks.
             RepositoryTabs(service: PreviewRepositoryService(), persistence: PreviewBookmarkPersistence())
@@ -29,6 +23,21 @@ struct iOSEngineerCodeCheckApp: App {
         RepositoryTabs()
         #endif
     }
+
+    #if DEBUG
+    private func uiTestPersistence(testID: String) -> any BookmarkPersistence {
+        if ProcessInfo.processInfo.environment["BOOKMARK_UI_TEST_LOAD_FAILURE"] == "1" {
+            return UITestRecoverablePersistence()
+        }
+        return FileBookmarkPersistence(
+            fileURL: FileManager.default.temporaryDirectory
+                .appending(path: "BookmarkUITests")
+                .appending(path: testID)
+                .appending(path: "bookmarks.json"),
+            legacyDefaults: nil
+        )
+    }
+    #endif
 }
 
 #if DEBUG
@@ -58,5 +67,19 @@ struct UITestRepositoryService: RepositorySearching {
         default: return try await PreviewRepositoryService().search(query: query)
         }
     }
+}
+
+@MainActor
+final class UITestRecoverablePersistence: BookmarkPersistence {
+    private var shouldFail = true
+    private var repositories: [Repository] = []
+    func load() throws -> [Repository] {
+        if shouldFail {
+            shouldFail = false
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        return repositories
+    }
+    func save(_ repositories: [Repository]) throws { self.repositories = repositories }
 }
 #endif

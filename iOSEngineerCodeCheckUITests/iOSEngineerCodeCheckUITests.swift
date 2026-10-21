@@ -6,9 +6,10 @@ final class iOSEngineerCodeCheckUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    private func launchApp() -> XCUIApplication {
+    private func launchApp(loadFailure: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["BOOKMARK_UI_TEST_ID"] = UUID().uuidString
+        if loadFailure { app.launchEnvironment["BOOKMARK_UI_TEST_LOAD_FAILURE"] = "1" }
         app.launch()
         return app
     }
@@ -47,6 +48,26 @@ final class iOSEngineerCodeCheckUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["GitHubのリポジトリを検索できます"].exists)
         search("swift", in: app)
         XCTAssertTrue(result.waitForExistence(timeout: 5))
+    }
+
+    func testUnreadableBookmarksAreNotPresentedAsEmptyAndCanRecover() {
+        let app = launchApp(loadFailure: true)
+        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 5))
+        app.alerts.buttons["OK"].tap()
+        search("swift", in: app)
+        let result = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "example/swift")).firstMatch
+        XCTAssertTrue(result.waitForExistence(timeout: 5))
+        result.tap()
+        XCTAssertFalse(app.buttons["Add to Bookmark"].isEnabled)
+        app.tabBars.buttons["Bookmark"].tap()
+        XCTAssertTrue(app.staticTexts["ブックマークを読み込めませんでした"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["ブックマークはまだありません"].exists)
+        app.buttons["ブックマークの読み込みを再試行"].tap()
+        XCTAssertTrue(app.staticTexts["ブックマークはまだありません"].waitForExistence(timeout: 5))
+        app.tabBars.buttons["Search"].tap()
+        XCTAssertTrue(app.buttons["Add to Bookmark"].isEnabled)
+        app.buttons["Add to Bookmark"].tap()
+        XCTAssertTrue(app.buttons["Remove from Bookmark"].exists)
     }
 
     func testBookmarkRemovalKeepsDetailAndSynchronizesTabsAndRelaunch() throws {

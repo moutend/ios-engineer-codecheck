@@ -17,7 +17,8 @@ struct RepositoryTabs: View {
         TabView(selection: $selectedTab) {
             NavigationStack {
                 RepositoryList(repositories: bookmarks.repositories,
-                               emptyMessage: "ブックマークはまだありません")
+                               emptyMessage: bookmarks.isLoaded
+                                ? "ブックマークはまだありません" : "ブックマークを読み込めませんでした")
                     .navigationTitle("Bookmarks")
                     .navigationBarTitleDisplayMode(.inline)
                     .safeAreaInset(edge: .top) {
