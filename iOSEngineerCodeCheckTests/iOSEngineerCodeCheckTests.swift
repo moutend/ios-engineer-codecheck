@@ -365,9 +365,20 @@ struct GitHubRepositoryServiceTests {
         }
     }
 
-    @Test func rejectsMalformedResponse() async {
-        let service = service(query: "malformed", body: "{\"items\":[{}]}")
+    @Test func duplicateResponseIdentitiesProduceOneRow() async throws {
+        let item = """
+        {"full_name":"owner/repository","language":null,"stargazers_count":1,
+        "watchers_count":2,"forks_count":3,"open_issues_count":4,"owner":{"avatar_url":"invalid avatar"}}
+        """
+        let service = service(query: "duplicates", body: "{\"items\":[\(item),\(item)]}")
         defer { service.session.invalidateAndCancel() }
-        await #expect(throws: DecodingError.self) { try await service.search(query: "malformed") }
+        #expect(try await service.search(query: "duplicates") == [repository()])
+    }
+
+    @Test(arguments: ["not JSON", "{}", "{\"items\":null}", "{\"items\":[{}]}"])
+    func rejectsMalformedResponse(body: String) async {
+        let service = service(query: "malformed-" + body, body: body)
+        defer { service.session.invalidateAndCancel() }
+        await #expect(throws: DecodingError.self) { try await service.search(query: "malformed-" + body) }
     }
 }

@@ -28,7 +28,9 @@ struct GitHubRepositoryService: RepositorySearching {
         }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return try decoder.decode(SearchResponse.self, from: data).items
+        let items = try decoder.decode(SearchResponse.self, from: data).items
+        var seen = Set<Repository.ID>()
+        return items.filter { seen.insert($0.id).inserted }
     }
 
     private struct SearchResponse: Decodable {
