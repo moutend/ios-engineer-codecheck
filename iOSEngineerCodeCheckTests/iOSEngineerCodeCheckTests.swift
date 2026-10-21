@@ -242,6 +242,53 @@ struct RepositorySearchTests {
         #expect(search.phase == .loaded)
     }
 
+    @Test(arguments: [false, true])
+    func editingInputInvalidatesPendingSuccessAndFailure(fails: Bool) async throws {
+        let service = ControlledSearch()
+        let search = RepositorySearch(service: service)
+        let task = try #require(search.submit("swift"))
+        await service.waitForRequest("swift")
+        search.inputChanged("kotlin")
+        #expect(search.phase == .idle)
+        await service.complete("swift", with: fails
+            ? .failure(URLError(.notConnectedToInternet)) : .success([repository()]))
+        await task.value
+        #expect(search.phase == .idle)
+        #expect(search.repositories.isEmpty)
+    }
+
+    @Test(arguments: [false, true])
+    func editingInputClearsCompletedResultsAndErrors(fails: Bool) async throws {
+        let service = ControlledSearch()
+        let search = RepositorySearch(service: service)
+        let task = try #require(search.submit("swift"))
+        await service.waitForRequest("swift")
+        await service.complete("swift", with: fails
+            ? .failure(URLError(.notConnectedToInternet)) : .success([repository()]))
+        await task.value
+        let completedPhase = search.phase
+        search.inputChanged(" swift ")
+        #expect(search.phase == completedPhase)
+        search.inputChanged("kotlin")
+        #expect(search.phase == .idle)
+        #expect(search.repositories.isEmpty)
+    }
+
+    @Test func obsoleteFailureCannotReplaceNewResults() async throws {
+        let service = ControlledSearch()
+        let search = RepositorySearch(service: service)
+        let old = try #require(search.submit("old"))
+        await service.waitForRequest("old")
+        let new = try #require(search.submit("new"))
+        await service.waitForRequest("new")
+        await service.complete("new", with: .success([repository("new/result")]))
+        await new.value
+        await service.complete("old", with: .failure(URLError(.timedOut)))
+        await old.value
+        #expect(search.repositories == [repository("new/result")])
+        #expect(search.phase == .loaded)
+    }
+
     @Test func cancellationIsNotPresentedAsFailure() async throws {
         let service = ControlledSearch()
         let search = RepositorySearch(service: service)

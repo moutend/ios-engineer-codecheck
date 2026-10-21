@@ -12,7 +12,7 @@ struct iOSEngineerCodeCheckApp: App {
     private var rootView: some View {
         #if DEBUG
         if let testID = ProcessInfo.processInfo.environment["BOOKMARK_UI_TEST_ID"] {
-            RepositoryTabs(service: PreviewRepositoryService(), persistence: FileBookmarkPersistence(
+            RepositoryTabs(service: UITestRepositoryService(), persistence: FileBookmarkPersistence(
                 fileURL: FileManager.default.temporaryDirectory
                     .appending(path: "BookmarkUITests")
                     .appending(path: testID)
@@ -44,5 +44,19 @@ struct PreviewRepositoryService: RepositorySearching {
 struct PreviewBookmarkPersistence: BookmarkPersistence {
     func load() throws -> [Repository] { [] }
     func save(_ repositories: [Repository]) throws {}
+}
+
+/// UI scenarios remain isolated from GitHub and the user's saved data.
+struct UITestRepositoryService: RepositorySearching {
+    func search(query: String) async throws -> [Repository] {
+        switch query {
+        case "empty": return []
+        case "failure": throw URLError(.notConnectedToInternet)
+        case "slow":
+            try await Task.sleep(for: .seconds(30))
+            return try await PreviewRepositoryService().search(query: query)
+        default: return try await PreviewRepositoryService().search(query: query)
+        }
+    }
 }
 #endif

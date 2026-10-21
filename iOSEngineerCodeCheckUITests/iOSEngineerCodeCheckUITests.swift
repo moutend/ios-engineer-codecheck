@@ -6,6 +6,49 @@ final class iOSEngineerCodeCheckUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    private func launchApp() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["BOOKMARK_UI_TEST_ID"] = UUID().uuidString
+        app.launch()
+        return app
+    }
+
+    private func search(_ query: String, in app: XCUIApplication) {
+        let field = app.textFields["repositorySearchField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        if let value = field.value as? String, value != field.placeholderValue {
+            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: value.count))
+        }
+        field.typeText(query + "\n")
+    }
+
+    func testEditingSearchAndEmptyFailureLoadingStates() {
+        let app = launchApp()
+        search("swift", in: app)
+        let result = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "example/swift")).firstMatch
+        XCTAssertTrue(result.waitForExistence(timeout: 5))
+        let field = app.textFields["repositorySearchField"]
+        field.tap()
+        field.typeText("x")
+        XCTAssertTrue(app.staticTexts["GitHubのリポジトリを検索できます"].waitForExistence(timeout: 5))
+        XCTAssertFalse(result.exists)
+        search("empty", in: app)
+        XCTAssertTrue(app.staticTexts["該当するリポジトリはありません"].waitForExistence(timeout: 5))
+        search("failure", in: app)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "検索に失敗しました。")).firstMatch.waitForExistence(timeout: 5))
+        search("slow", in: app)
+        XCTAssertTrue(app.activityIndicators.firstMatch.waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText("x")
+        XCTAssertTrue(app.staticTexts["GitHubのリポジトリを検索できます"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.activityIndicators.firstMatch.exists)
+        search("   ", in: app)
+        XCTAssertTrue(app.staticTexts["GitHubのリポジトリを検索できます"].exists)
+        search("swift", in: app)
+        XCTAssertTrue(result.waitForExistence(timeout: 5))
+    }
+
     func testBookmarkRemovalKeepsDetailAndSynchronizesTabsAndRelaunch() throws {
         let app = XCUIApplication()
         app.launchEnvironment["BOOKMARK_UI_TEST_ID"] = UUID().uuidString

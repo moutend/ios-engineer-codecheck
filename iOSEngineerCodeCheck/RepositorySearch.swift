@@ -58,6 +58,7 @@ final class RepositorySearch {
 
     private let service: any RepositorySearching
     private var requestID = UUID()
+    private var submittedQuery: String?
     private var task: Task<Void, Never>?
     private(set) var repositories: [Repository] = []
     private(set) var phase: Phase = .idle
@@ -72,6 +73,7 @@ final class RepositorySearch {
         clear()
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return nil }
+        submittedQuery = query
         phase = .loading
         let id = requestID
         let service = service
@@ -93,9 +95,17 @@ final class RepositorySearch {
         return task
     }
 
+    // Editing invalidates the previous submission without starting a new request.
+    func inputChanged(_ text: String) {
+        if text.trimmingCharacters(in: .whitespacesAndNewlines) != submittedQuery {
+            clear()
+        }
+    }
+
     func clear() {
         task?.cancel()
         task = nil
+        submittedQuery = nil
         requestID = UUID()
         repositories = []
         phase = .idle
