@@ -21,7 +21,7 @@ Homebrew、外部パッケージ、GitHubトークン、個人の署名アカウ
 `DEV_SIMULATOR_UDID=<simctlで確認したID> ./scripts/dev test-ui` で端末を明示する場合はOS指定より優先し、利用可能性と最低OSを検査する。
 UUIDや個人用絶対パスは設定ファイルへ保存しない。Simulatorはテスト時にXcodeが起動する。
 別ツールチェーンを混在させないため `TOOLCHAINS` は未設定にする。テストは並列実行を無効にし、1件の実行上限を180秒にする。
-AI実行環境のsandboxがCoreSimulatorを拒否する場合、同じコマンドを通常のローカル権限で実行できるよう許可が必要。
+AI実行環境のsandboxがCoreSimulatorやxcresulttoolの管理キャッシュを拒否する場合、同じコマンドを通常のローカル権限で実行できるよう許可が必要。
 
 ## 共通コマンド
 
@@ -65,6 +65,8 @@ Xcodeの付随ツールの警告（例: App Intentsメタデータ抽出）は�
 実行中は `running`。失敗後の工程は未実行であり、全体成功とはしない。
 強制終了で `running` が残る場合も成功ではない。不正な引数は出力作成前にusageを表示して終了コード2。
 各工程の `.log` にコマンドと標準出力・標準エラーを直接保存し、子プロセスの非ゼロを伝播する。
+ログ内の `error` という文字列だけでは判定せず、終了コードとxcresultを使う。
+このXcodeでは成功時にもSDKビルド番号に関する内部診断 `invalidDigitCount` が出ることを確認している。
 端末には工程とログの場所・結果を表示する。進行を見るには該当ログを `tail -f` する。
 
 テスト結果は `test-unit.xcresult` / `test-ui.xcresult`。成功時は `*-results.json` に解析結果も保存する。
@@ -111,7 +113,6 @@ iPhone 17 / iOS 27.0、Python 3.14.5で検証。
 - 初回 `test-unit --fresh`: 24.217秒、単体22件成功・失敗/スキップ0。
 - `script-test`: 6.522秒、スタブによるハーネス契約テスト12件成功。実Xcodeテストとは別。
 - 初回整形前 `format-check`: 終了コード1、0.347秒。違反箇所をログに保存し、ソース差分なし。
-
 - 初回整形後 `check-all`: 160.349秒。単体22件・UI4件成功、失敗/スキップ0、Releaseビルド成功。
 - 初回整形は6ファイルの空白・改行のみ（空白を除いた文字列が一致）。2回目のformat後も差分が完全一致し、冪等性を確認。
 - 実テスト失敗時、Xcodeがtimeout=600秒の `simctl diagnose` を起動することを確認した。
@@ -135,4 +136,66 @@ Issue本文の4要件（環境・制約の文書化、クリーン状態から�
 | 9. 結果と診断 | JSONサマリー、終了コード、生ログ、xcresult、未実行と成功の区別 |
 | 10. 基盤自体の検証 | スタブ12件と破棄可能コピーでの実ツール失敗検証を区別。元のソースは変更しない |
 
-クリーンチェックアウトと失敗系の最終結果は、検証完了後に追記する。
+## 実ツールでの失敗検証
+
+追跡ファイルを `.dev/failure-probes-319dtvm4/disposable checkout` にコピーし、そのコピーだけを変更した。
+元の作業コピー・個人のデータ・Simulator runtimeには変更を加えていない。
+コピー側の変更も各検証のfinallyで戻した。`probes.json` と工程別ログ、コピー側の `.dev/runs` に結果を保持している。
+
+| 仕込んだ条件 | コマンド | 終了コード | 実測秒 |
+| --- | --- | ---: | ---: |
+| 存在しないDEVELOPER_DIR | doctor | 1 | 0.436 |
+| 統合チェックに不正な--only | check-all --only Suite | 2 | 0.031 |
+| コピーのSwiftに書式違反を追加 | format-check | 1 | 0.378 |
+| コピーに#errorを追加 | build | 65 | 1.455 |
+| 未使用ローカル変数によるコンパイラ警告 | static-check | 65 | 3.698 |
+| コピーに失敗するテストを追加 | test-unit --only HarnessFailureProbe | 65 | 16.901 |
+| 存在しないsuite | test-unit --only NoSuchSuite | 1 | 16.747 |
+
+書式チェック前後で違反を仕込んだソースのバイト列が一致。
+失敗xcresultは `xcresulttool get test-results summary` で1件失敗とアサーション内容を読み取れた。
+スタブ12件はこれらとは別に、未実行工程、標準出力/標準エラーの保存、終了コード、端末選択・上書き、
+スキップ/0件の拒否、重複しない出力、キャッシュ保全、同時実行拒否、symlink出力拒否も検査する。
+
+クリーンなチェックアウトを再現する例（未コミット変更は含まれない）:
+
+```sh
+validation_dir="$(mktemp -d)"
+git clone --no-hardlinks . "$validation_dir/checkout"
+(cd "$validation_dir/checkout" && ./scripts/dev check-all --fresh)
+git -C "$validation_dir/checkout" status --short
+```
+
+結果を保存した後で、この用途に作ったコピーだけを削除する。
+今回の検証コピー `.dev/clean-checkout-*` / `.dev/failure-probes-*` も、実行終了後に個別に削除できる。
+
+## 最終検証（2026-10-21）
+
+実装コミット `040bce6` をローカルcloneした、未コミット変更とDerivedDataのないチェックアウトで
+`./scripts/dev check-all --fresh` を実行した。終了コード0、単体22件・UI4件成功、失敗/スキップ0。
+開始前後の全追跡ファイルのSHA-256が一致し、終了後の `git status --porcelain` は空だった。
+
+| クリーンチェックアウトの工程 | 秒 |
+| --- | ---: |
+| doctor | 0.423 |
+| format-check | 0.032 |
+| script-test（スタブ12件） | 6.672 |
+| static-check（Debugビルド） | 4.669 |
+| test-unit（22件） | 16.719 |
+| test-ui（4件） | 125.840 |
+| build-release | 4.317 |
+| **check-all --fresh 全体** | **158.674** |
+
+証跡は `.dev/clean-checkout-i1c5is4h/verification.json` と、その `checkout/.dev/runs/20261021-210847-check-all-dwjxlvvy/` に保存した。
+これらの日時や一時ディレクトリ名は今回の証跡の識別子であり、実行設定ではない。
+
+通常キャッシュを再利用した最終実装の `check-fast` は **22.770秒**（書式0.032秒、
+スクリプト6.680秒、静的チェック0.805秒、単体14.918秒、doctor0.333秒）。
+`test-unit --only RepositorySearchTests` は **15.527秒**で検索suiteの9件が成功した。
+証跡は `.dev/runs/20261021-211153-check-fast-b7t7lygx/` と
+`.dev/runs/20261021-211216-test-unit-0w91m2o6/`。
+
+小さな修正の反復にはcheck-fast、UI・保存/検索フロー変更の完了時やコミット前の全体確認にはcheck-all、
+ツールチェーン更新・初回セットアップ・キャッシュの疑いがあるときはcheck-all --freshを使う。
+所要時間はこの端末・runtimeの実測であり、速度目標や他環境での保証ではない。
+最終差分は全Swiftファイルで空白以外の文字が開始コミットと一致しており、アプリ仕様・UI・保存形式や既存の検証内容を変更していない。
