@@ -131,6 +131,10 @@ final class RepositorySearch {
   private(set) var totalCount: Int?
   private(set) var phase: Phase = .idle
 
+  var hasReachedDisplayLimit: Bool {
+    phase == .loaded && !hasMore && repositories.count >= 1_000
+  }
+
   init(service: any RepositorySearching) {
     self.service = service
   }

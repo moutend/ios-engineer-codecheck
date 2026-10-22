@@ -114,15 +114,8 @@ private struct RepositorySearchScreen: View {
         }
         .accessibilityIdentifier("searchSortMenu")
         if let count = search.totalCount {
-          VStack(alignment: .leading, spacing: 4) {
-            Text("検索結果: \(count.formatted())件")
-              .accessibilityIdentifier("searchResultCount")
-            if count > 1_000 {
-              Text("表示できるのは上位1,000件までです。検索条件を絞り込めます。")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-          }
+          Text("検索結果: \(count.formatted())件")
+            .accessibilityIdentifier("searchResultCount")
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -155,6 +148,15 @@ private struct RepositorySearchScreen: View {
         case .idle:
           if search.hasMore {
             Button("もっと読み込む") { search.loadMore() }
+          } else if search.hasReachedDisplayLimit {
+            Image(systemName: "exclamationmark.triangle")
+              .accessibilityHidden(true)
+            Text("表示できるのは上位1,000件までです。別のキーワードで検索をお試しください。")
+              .font(.footnote)
+              .foregroundStyle(.secondary)
+              .multilineTextAlignment(.center)
+              .fixedSize(horizontal: false, vertical: true)
+              .accessibilityIdentifier("searchDisplayLimitNotice")
           }
         }
       }

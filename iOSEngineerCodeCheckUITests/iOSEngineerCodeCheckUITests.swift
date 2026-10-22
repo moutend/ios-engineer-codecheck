@@ -29,6 +29,28 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
     field.typeText(query + "\n")
   }
 
+  func testDisplayLimitNoticeReplacesLoadMoreAtEndOfResults() {
+    let app = launchApp()
+    search("display-limit", in: app)
+    let more = app.buttons["もっと読み込む"]
+    XCTAssertTrue(more.waitForExistence(timeout: 5))
+    let notice = app.staticTexts["searchDisplayLimitNotice"]
+    XCTAssertFalse(notice.exists)
+    XCTAssertFalse(app.staticTexts["表示できるのは上位1,000件までです。検索条件を絞り込めます。"].exists)
+    more.tap()
+    let scroll = app.scrollViews.firstMatch
+    for _ in 0..<100 {
+      if notice.exists && notice.isHittable { break }
+      scroll.swipeUp(velocity: .fast)
+    }
+    XCTAssertTrue(notice.isHittable)
+    XCTAssertEqual(notice.label, "表示できるのは上位1,000件までです。別のキーワードで検索をお試しください。")
+    XCTAssertFalse(more.exists)
+    let attachment = XCTAttachment(screenshot: app.screenshot())
+    attachment.lifetime = .keepAlways
+    add(attachment)
+  }
+
   func testSortChangesResultOrderAndRetainsSelectionForNextSearch() {
     let app = launchApp()
     search("sorting", in: app)
@@ -96,6 +118,7 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
     XCTAssertEqual(app.staticTexts.matching(identifier: "example/swift").count, 1)
     XCTAssertFalse(app.buttons["もっと読み込む"].exists)
     XCTAssertFalse(app.buttons["再試行"].exists)
+    XCTAssertFalse(app.staticTexts["searchDisplayLimitNotice"].exists)
     second.tap()
     app.buttons["Add to Bookmark"].tap()
     app.tabBars.buttons["Bookmark"].tap()

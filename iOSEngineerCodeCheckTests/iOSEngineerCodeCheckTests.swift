@@ -419,6 +419,28 @@ struct RepositorySearchTests {
 
 @MainActor
 struct PaginationTests {
+  @Test(arguments: [0, 999, 1_000])
+  func displayLimitDependsOnLoadedRowsNotTotalMatches(count: Int) async throws {
+    let service = ControlledSearch()
+    let search = RepositorySearch(service: service)
+    let first = try #require(search.submit("swift"))
+    await service.waitForRequest("swift")
+    await service.complete("swift", hasMore: true, totalCount: 2_000, with: .success([]))
+    await first.value
+    #expect(!search.hasReachedDisplayLimit)
+    let more = try #require(search.loadMore())
+    await service.waitForRequest("swift", page: 2)
+    #expect(!search.hasReachedDisplayLimit)
+    await service.complete(
+      "swift", page: 2, totalCount: 2_000,
+      with: .success((0..<count).map { repository("owner/repo-\($0)") }))
+    await more.value
+    #expect(search.hasReachedDisplayLimit == (count == 1_000))
+    #expect(search.loadMore() == nil)
+    search.inputChanged("new")
+    #expect(!search.hasReachedDisplayLimit)
+  }
+
   @Test func retriesSamePageRetainsResultsDeduplicatesAndStopsAtEnd() async throws {
     let service = ControlledSearch()
     let search = RepositorySearch(service: service)

@@ -72,6 +72,9 @@ struct IOSEngineerCodeCheckApp: App {
     func search(
       query: String, page: Int, sort: RepositorySort = .bestMatch
     ) async throws -> RepositoryPage {
+      if query == "display-limit" {
+        return displayLimitPage(page: page)
+      }
       if query == "sorting" {
         let first = try await PreviewRepositoryService().search(query: query, page: page)
         let second = Repository(
@@ -116,6 +119,17 @@ struct IOSEngineerCodeCheckApp: App {
           ], hasMore: false, totalCount: 1)
       default: return try await PreviewRepositoryService().search(query: query, page: page)
       }
+    }
+
+    private func displayLimitPage(page: Int) -> RepositoryPage {
+      // Reach the real row-count boundary in two requests for UI testing.
+      let indices = page == 1 ? 0..<1 : 1..<1_000
+      let items = indices.map { index in
+        Repository(
+          fullName: "example/result-\(index)", language: "Swift", stargazersCount: index,
+          watchersCount: 0, forksCount: 0, openIssuesCount: 0, owner: .init(avatarUrl: ""))
+      }
+      return RepositoryPage(repositories: items, hasMore: page == 1, totalCount: 2_000)
     }
   }
 
