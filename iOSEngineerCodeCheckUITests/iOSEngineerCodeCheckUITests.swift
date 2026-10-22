@@ -246,6 +246,12 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
     let language = app.staticTexts["repositoryLanguage"]
     XCTAssertTrue(name.waitForExistence(timeout: 5))
     XCTAssertTrue(language.exists)
+    let count = app.staticTexts["searchResultCount"]
+    XCTAssertTrue(count.isHittable)
+    XCTAssertEqual(count.label, "検索結果: 1件")
+    XCTAssertGreaterThanOrEqual(count.frame.minX, app.frame.minX)
+    XCTAssertLessThanOrEqual(count.frame.maxX, app.frame.maxX)
+    XCTAssertLessThanOrEqual(count.frame.maxY, name.frame.minY)
     XCTAssertGreaterThanOrEqual(language.frame.minY, name.frame.maxY)
     XCTAssertLessThanOrEqual(name.frame.maxX, app.frame.maxX)
     name.tap()

@@ -122,6 +122,8 @@ private struct RepositorySearchScreen: View {
         .accessibilityIdentifier("searchSortMenu")
         if let count = search.totalCount {
           Text("検索結果: \(count.formatted())件")
+            .font(.headline)
+            .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier("searchResultCount")
         }
       }
