@@ -20,9 +20,18 @@ case "$1" in
     cd "$root"
     tmp=$(mktemp)
     trap 'rm -f "$tmp"' EXIT
-    git ls-files -m -o --exclude-standard -z -- '*.swift' > "$tmp"
+    git diff --name-only -z -- '*.swift' > "$tmp"
+    git diff --cached --name-only -z -- '*.swift' >> "$tmp"
+    git ls-files --others --exclude-standard -z -- '*.swift' >> "$tmp"
+    # macOS標準のBashでも扱える配列で重複を除去します。
+    # 空文字の初期値は、set -uで空配列を参照する際のエラーを防ぎます。
+    processed=("")
     while IFS= read -r -d '' file; do
       [[ -f "$file" ]] || continue
+      for processed_file in "${processed[@]}"; do
+        [[ "$file" != "$processed_file" ]] || continue 2
+      done
+      processed+=("$file")
       if ! xcrun swift-format format --in-place "$file"; then
         echo "Formatting failed: $file" >&2
         exit 2
