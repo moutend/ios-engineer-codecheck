@@ -29,6 +29,31 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
     field.typeText(query + "\n")
   }
 
+  func testDisplayLimitNoticeReplacesLoadMoreAtEndOfResults() {
+    let app = launchApp()
+    search("display-limit", in: app)
+    let more = app.buttons["もっと読み込む"]
+    XCTAssertTrue(more.waitForExistence(timeout: 5))
+    let notice = app.staticTexts["searchDisplayLimitNotice"]
+    XCTAssertFalse(notice.exists)
+    XCTAssertFalse(app.staticTexts["表示できるのは上位1,000件までです。検索条件を絞り込めます。"].exists)
+    more.tap()
+    let scroll = app.scrollViews.firstMatch
+    for _ in 0..<100 {
+      if notice.exists && notice.isHittable { break }
+      scroll.swipeUp(velocity: .fast)
+    }
+    XCTAssertTrue(notice.isHittable)
+    XCTAssertEqual(notice.label, "取得できるリポジトリは上位1,000件までです。別のキーワードで検索をお試しください。")
+    let warning = app.images["searchDisplayLimitWarning"]
+    XCTAssertTrue(warning.isHittable)
+    XCTAssertEqual(warning.label, "警告")
+    XCTAssertFalse(more.exists)
+    let attachment = XCTAttachment(screenshot: app.screenshot())
+    attachment.lifetime = .keepAlways
+    add(attachment)
+  }
+
   func testSortChangesResultOrderAndRetainsSelectionForNextSearch() {
     let app = launchApp()
     search("sorting", in: app)
@@ -119,7 +144,8 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
     XCTAssertTrue(first.waitForExistence(timeout: 5))
     XCTAssertEqual(app.staticTexts["searchResultCount"].label, "検索結果: 2件")
     app.buttons["もっと読み込む"].tap()
-    XCTAssertTrue(app.staticTexts["読み込み中"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.activityIndicators["additionalSearchLoading"].waitForExistence(timeout: 5))
+    XCTAssertEqual(app.activityIndicators["additionalSearchLoading"].label, "読み込み中")
     XCTAssertTrue(first.exists)
     XCTAssertFalse(app.buttons["もっと読み込む"].exists)
     XCTAssertFalse(app.otherElements["initialSearchLoading"].exists)
@@ -129,12 +155,14 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
       app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "追加読み込みに失敗しました。"))
         .firstMatch.exists)
     app.buttons["再試行"].tap()
-    XCTAssertTrue(app.staticTexts["読み込み中"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.activityIndicators["additionalSearchLoading"].waitForExistence(timeout: 5))
+    XCTAssertEqual(app.activityIndicators["additionalSearchLoading"].label, "読み込み中")
     let second = app.staticTexts["example/second"]
     XCTAssertTrue(second.waitForExistence(timeout: 5))
     XCTAssertEqual(app.staticTexts.matching(identifier: "example/swift").count, 1)
     XCTAssertFalse(app.buttons["もっと読み込む"].exists)
     XCTAssertFalse(app.buttons["再試行"].exists)
+    XCTAssertFalse(app.staticTexts["searchDisplayLimitNotice"].exists)
     second.tap()
     app.buttons["Add to Bookmark"].tap()
     app.tabBars.buttons["Bookmark"].tap()
@@ -151,12 +179,13 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
     search("pagination", in: app)
     XCTAssertTrue(app.buttons["もっと読み込む"].waitForExistence(timeout: 5))
     app.buttons["もっと読み込む"].tap()
-    XCTAssertTrue(app.staticTexts["読み込み中"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.activityIndicators["additionalSearchLoading"].waitForExistence(timeout: 5))
+    XCTAssertEqual(app.activityIndicators["additionalSearchLoading"].label, "読み込み中")
     search("empty", in: app)
     XCTAssertTrue(app.staticTexts["該当するリポジトリはありません"].waitForExistence(timeout: 5))
     XCTAssertEqual(app.staticTexts["searchResultCount"].label, "検索結果: 0件")
     XCTAssertFalse(app.staticTexts["example/swift"].exists)
-    XCTAssertFalse(app.staticTexts["読み込み中"].exists)
+    XCTAssertFalse(app.activityIndicators["additionalSearchLoading"].exists)
     XCTAssertFalse(app.buttons["再試行"].exists)
   }
 
@@ -217,6 +246,12 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
     let language = app.staticTexts["repositoryLanguage"]
     XCTAssertTrue(name.waitForExistence(timeout: 5))
     XCTAssertTrue(language.exists)
+    let count = app.staticTexts["searchResultCount"]
+    XCTAssertTrue(count.isHittable)
+    XCTAssertEqual(count.label, "検索結果: 1件")
+    XCTAssertGreaterThanOrEqual(count.frame.minX, app.frame.minX)
+    XCTAssertLessThanOrEqual(count.frame.maxX, app.frame.maxX)
+    XCTAssertLessThanOrEqual(count.frame.maxY, name.frame.minY)
     XCTAssertGreaterThanOrEqual(language.frame.minY, name.frame.maxY)
     XCTAssertLessThanOrEqual(name.frame.maxX, app.frame.maxX)
     name.tap()

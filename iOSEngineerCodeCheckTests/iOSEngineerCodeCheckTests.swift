@@ -419,6 +419,28 @@ struct RepositorySearchTests {
 
 @MainActor
 struct PaginationTests {
+  @Test(arguments: [0, 999, 1_000])
+  func displayLimitDependsOnLoadedRowsNotTotalMatches(count: Int) async throws {
+    let service = ControlledSearch()
+    let search = RepositorySearch(service: service)
+    let first = try #require(search.submit("swift"))
+    await service.waitForRequest("swift")
+    await service.complete("swift", hasMore: true, totalCount: 2_000, with: .success([]))
+    await first.value
+    #expect(!search.hasReachedDisplayLimit)
+    let more = try #require(search.loadMore())
+    await service.waitForRequest("swift", page: 2)
+    #expect(!search.hasReachedDisplayLimit)
+    await service.complete(
+      "swift", page: 2, totalCount: 2_000,
+      with: .success((0..<count).map { repository("owner/repo-\($0)") }))
+    await more.value
+    #expect(search.hasReachedDisplayLimit == (count == 1_000))
+    #expect(search.loadMore() == nil)
+    search.inputChanged("new")
+    #expect(!search.hasReachedDisplayLimit)
+  }
+
   @Test func retriesSamePageRetainsResultsDeduplicatesAndStopsAtEnd() async throws {
     let service = ControlledSearch()
     let search = RepositorySearch(service: service)
@@ -542,7 +564,7 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     guard let url = request.url,
       url.host == "api.github.com", url.path == "/search/repositories",
       let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-      components.queryItems?.first(where: { $0.name == "per_page" })?.value == "30",
+      components.queryItems?.first(where: { $0.name == "per_page" })?.value == "50",
       components.percentEncodedQuery?.contains("+") == false,
       let query = components.queryItems?.first(where: { $0.name == "q" })?.value,
       let stub = Self.stubs.withLock({ $0[query] }),
@@ -596,7 +618,17 @@ struct GitHubRepositoryServiceTests {
     #expect(result.totalCount == 0)
   }
 
-  @Test(arguments: [1, 2, 33, 34])
+  @Test(arguments: [0, 21])
+  func rejectsPagesOutsideThousandResultLimit(page: Int) async {
+    let service = service(
+      query: "invalid-page-\(page)", page: page, body: "{\"total_count\":2000,\"items\":[]}")
+    defer { service.session.invalidateAndCancel() }
+    await #expect(throws: GitHubRepositoryService.SearchError.invalidURL) {
+      try await service.search(query: "invalid-page-\(page)", page: page)
+    }
+  }
+
+  @Test(arguments: [1, 2, 19, 20])
   func sendsPageAndStopsAtSearchLimit(page: Int) async throws {
     let query = "page-\(page)"
     let item = """
@@ -610,10 +642,10 @@ struct GitHubRepositoryServiceTests {
     let result = try await service.search(query: query, page: page)
     #expect(result.repositories == [repository()])
     #expect(result.totalCount == 2000)
-    #expect(result.hasMore == (page < 34))
+    #expect(result.hasMore == (page < 20))
   }
 
-  @Test(arguments: [0, 1, 30, 31])
+  @Test(arguments: [0, 1, 49, 50, 51])
   func totalCountDeterminesContinuation(total: Int) async throws {
     let query = "total-\(total)"
     let item = """
@@ -624,7 +656,7 @@ struct GitHubRepositoryServiceTests {
       query: query,
       body: "{\"total_count\":\(total),\"items\":[\(item)]}")
     defer { service.session.invalidateAndCancel() }
-    #expect(try await service.search(query: query, page: 1).hasMore == (total > 30))
+    #expect(try await service.search(query: query, page: 1).hasMore == (total > 50))
   }
 
   @Test func emptyPageStopsEvenWithOutdatedTotalCount() async throws {
