@@ -44,7 +44,10 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
       scroll.swipeUp(velocity: .fast)
     }
     XCTAssertTrue(notice.isHittable)
-    XCTAssertEqual(notice.label, "表示できるのは上位1,000件までです。別のキーワードで検索をお試しください。")
+    XCTAssertEqual(notice.label, "取得できるリポジトリは上位1,000件までです。別のキーワードで検索をお試しください。")
+    let warning = app.images["searchDisplayLimitWarning"]
+    XCTAssertTrue(warning.isHittable)
+    XCTAssertEqual(warning.label, "警告")
     XCTAssertFalse(more.exists)
     let attachment = XCTAttachment(screenshot: app.screenshot())
     attachment.lifetime = .keepAlways

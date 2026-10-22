@@ -153,8 +153,9 @@ private struct RepositorySearchScreen: View {
             Button("もっと読み込む") { search.loadMore() }
           } else if search.hasReachedDisplayLimit {
             Image(systemName: "exclamationmark.triangle")
-              .accessibilityHidden(true)
-            Text("表示できるのは上位1,000件までです。別のキーワードで検索をお試しください。")
+              .accessibilityLabel("警告")
+              .accessibilityIdentifier("searchDisplayLimitWarning")
+            Text("取得できるリポジトリは上位1,000件までです。別のキーワードで検索をお試しください。")
               .font(.footnote)
               .foregroundStyle(.secondary)
               .multilineTextAlignment(.center)
