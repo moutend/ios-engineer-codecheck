@@ -1,8 +1,19 @@
 import SwiftUI
 
-struct RepositoryList: View {
+struct RepositoryList<Footer: View>: View {
   let repositories: [Repository]
   let emptyMessage: String
+  private let footer: Footer
+
+  init(repositories: [Repository], emptyMessage: String, @ViewBuilder footer: () -> Footer) {
+    self.repositories = repositories
+    self.emptyMessage = emptyMessage
+    self.footer = footer()
+  }
+
+  init(repositories: [Repository], emptyMessage: String) where Footer == EmptyView {
+    self.init(repositories: repositories, emptyMessage: emptyMessage) { EmptyView() }
+  }
 
   var body: some View {
     ScrollView {
@@ -16,6 +27,7 @@ struct RepositoryList: View {
           }
           Divider()
         }
+        footer
       }
     }
     .navigationDestination(for: Repository.self) { repository in
