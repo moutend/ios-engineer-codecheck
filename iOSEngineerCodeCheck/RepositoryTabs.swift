@@ -108,21 +108,34 @@ private struct RepositorySearchScreen: View {
       submitSearch()
     }
     .safeAreaInset(edge: .top) {
-      if let count = search.totalCount {
-        VStack(alignment: .leading, spacing: 4) {
-          Text("検索結果: \(count.formatted())件")
-            .accessibilityIdentifier("searchResultCount")
-          if count > 1_000 {
-            Text("表示できるのは上位1,000件までです。検索条件を絞り込めます。")
-              .font(.caption)
-              .foregroundStyle(.secondary)
+      VStack(alignment: .leading, spacing: 8) {
+        Menu {
+          Picker("並び順", selection: Binding(get: { search.sort }, set: { search.changeSort($0) })) {
+            ForEach(RepositorySort.allCases, id: \.self) { sort in
+              Text(sort.title).tag(sort)
+            }
+          }
+        } label: {
+          Label("並び順: \(search.sort.title)", systemImage: "arrow.up.arrow.down")
+            .multilineTextAlignment(.leading)
+        }
+        .accessibilityIdentifier("searchSortMenu")
+        if let count = search.totalCount {
+          VStack(alignment: .leading, spacing: 4) {
+            Text("検索結果: \(count.formatted())件")
+              .accessibilityIdentifier("searchResultCount")
+            if count > 1_000 {
+              Text("表示できるのは上位1,000件までです。検索条件を絞り込めます。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
           }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(.bar)
       }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.horizontal, 16)
+      .padding(.vertical, 8)
+      .background(.bar)
     }
     .overlay {
       if search.phase == .loading {
