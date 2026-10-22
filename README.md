@@ -35,6 +35,14 @@ AI コーディングアシスタントの利用は通常の開発作業と同�
 6. Remove を押すと即座に Bookmark から削除されるが、画面は詳細のままで留まり、Add で再登録できる
 7. ブックマークはアプリの再起動後も保持される
 
+### 検索の使い方
+
+- 検索完了後、一覧の上部にGitHub APIが返した総ヒット数を表示します。0件の場合も表示し、1,000件を超える場合は取得上限を案内します。検索語の編集や再検索中には以前の件数を表示しません。
+- 検索欄では、確定した検索語を新しい順に最大20件保存し、入力内容を含む履歴を候補として表示します。候補を選ぶと再検索できます。履歴は端末内に保存され、再起動後も利用できます。「検索履歴を消去」でまとめて削除できます。
+- 「並び順」から、関連度順、スター数・フォーク数の多い順／少ない順、更新の新しい順／古い順を選べます。選択は同じ起動中の次の検索にも適用されます。並び順を変更するとGitHub側でソートした結果を1ページ目から取得し、追加ページにも同じ順序を使います。
+
+検索候補はSwiftUI標準の[searchSuggestions](https://developer.apple.com/documentation/swiftui/view/searchsuggestions(_:))と`searchCompletion`を利用しています。総件数・並び順・取得上限は[GitHub Search API](https://docs.github.com/en/rest/search/search#search-repositories)に従います。
+
 ## 開発時の構成と検証
 
 ビルド・実行・テストの手順は[開発手順](docs/Development.md)を参照してください。各課題の作業記録は、対応するIssueのコメント（[Issue #1](https://github.com/moutend/ios-engineer-codecheck/issues/1#issuecomment-6337367117)、[Issue #2](https://github.com/moutend/ios-engineer-codecheck/issues/2#issuecomment-6337371174)）に記載しています。
