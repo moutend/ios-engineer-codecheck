@@ -382,3 +382,5 @@ struct GitHubRepositoryServiceTests {
         await #expect(throws: DecodingError.self) { try await service.search(query: "malformed-" + body) }
     }
 }
+
+#error("Intentional CI build failure; do not merge")
