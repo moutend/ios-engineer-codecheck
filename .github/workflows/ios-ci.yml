@@ -38,7 +38,6 @@ jobs:
           xcrun simctl bootstatus "$device_id" -b
       - name: Build app and test bundles
         run: |
-          set -o pipefail
           mkdir -p artifacts
           xcodebuild build-for-testing \
             -project iOSEngineerCodeCheck.xcodeproj \
@@ -47,11 +46,9 @@ jobs:
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             -skipPackagePluginValidation \
-            CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee artifacts/build.log
+            CODE_SIGNING_ALLOWED=NO
       - name: Run all unit and UI tests
         run: |
-          set -o pipefail
           xcodebuild test-without-building \
             -project iOSEngineerCodeCheck.xcodeproj \
             -scheme iOSEngineerCodeCheck \
@@ -60,15 +57,14 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             -resultBundlePath artifacts/Tests.xcresult \
             -parallel-testing-enabled NO \
-            CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee artifacts/test.log
-      - name: Upload logs and test results
-        if: always()
+            CODE_SIGNING_ALLOWED=NO
+      - name: Upload test results on failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: ios-ci-results-${{ github.run_id }}-${{ github.run_attempt }}
-          path: artifacts/
-          if-no-files-found: warn
+          path: artifacts/Tests.xcresult
+          if-no-files-found: ignore
           retention-days: 14
 
   required:

@@ -7,7 +7,7 @@
 - Xcode 26.6のSDKはiOS 26.5のため、プロジェクトにSimulator限定の最小iOS 26.5を設定（`IPHONEOS_DEPLOYMENT_TARGET[sdk=iphonesimulator*]`）。実機・配布用の26.6は維持します。コマンドラインの上書きのみではXcodeの実行先解決に反映されませんでした
 - `build-for-testing` でアプリとテストバンドルをビルド
 - `test-without-building` で共有schemeに登録されたユニットテスト・UIテストをすべて実行（除外・リトライなし）
-- ログと `Tests.xcresult` はActionsのArtifactsに14日間保存
+- 実行ログはActionsのジョブログで確認。失敗時のみ、生成されていれば `Tests.xcresult` をArtifactsに14日間保存（ビルド失敗などで未生成の場合はアップロードなし）
 - `iOS CI required` は、上記ジョブが成功した場合のみ成功。失敗・キャンセル・スキップを成功扱いしません。
 
 PRではGitHubのマージ予定コミットを検証します。手動実行では選択したブランチのコミットを検証するため、mainとの統合後の結果はPRでも確認してください。
