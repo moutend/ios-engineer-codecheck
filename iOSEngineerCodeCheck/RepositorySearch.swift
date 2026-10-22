@@ -4,6 +4,7 @@ import Observation
 struct RepositoryPage: Sendable {
   let repositories: [Repository]
   let hasMore: Bool
+  let totalCount: Int
 }
 
 protocol RepositorySearching: Sendable {
@@ -47,7 +48,8 @@ struct GitHubRepositoryService: RepositorySearching {
       repositories: items.filter { seen.insert($0.id).inserted },
       // GitHub exposes at most 1,000 matches. Use the server count, not the
       // deduplicated row count, and stop if the server returns an empty page.
-      hasMore: !items.isEmpty && page * pageSize < min(result.totalCount, 1_000))
+      hasMore: !items.isEmpty && page * pageSize < min(result.totalCount, 1_000),
+      totalCount: result.totalCount)
   }
 
   private struct SearchResponse: Decodable {
@@ -90,6 +92,7 @@ final class RepositorySearch {
   private var submittedQuery: String?
   private var task: Task<Void, Never>?
   private(set) var repositories: [Repository] = []
+  private(set) var totalCount: Int?
   private(set) var phase: Phase = .idle
 
   init(service: any RepositorySearching) {
@@ -127,6 +130,7 @@ final class RepositorySearch {
         var seen = Set(self.repositories.map(\.id))
         self.repositories.append(
           contentsOf: result.repositories.filter { seen.insert($0.id).inserted })
+        self.totalCount = result.totalCount
         self.nextPage = page + 1
         self.hasMore = result.hasMore
         self.phase = .loaded
@@ -162,6 +166,7 @@ final class RepositorySearch {
     submittedQuery = nil
     requestID = UUID()
     repositories = []
+    totalCount = nil
     phase = .idle
     additionalPhase = .idle
     nextPage = 1

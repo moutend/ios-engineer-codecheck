@@ -180,16 +180,41 @@ private actor ControlledSearch: RepositorySearching {
   }
 
   func complete(
-    _ query: String, page: Int = 1, hasMore: Bool = false,
+    _ query: String, page: Int = 1, hasMore: Bool = false, totalCount: Int? = nil,
     with result: Result<[Repository], any Error>
   ) {
     requests.removeValue(forKey: "\(query):\(page)")?.resume(
-      with: result.map { RepositoryPage(repositories: $0, hasMore: hasMore) })
+      with: result.map {
+        RepositoryPage(repositories: $0, hasMore: hasMore, totalCount: totalCount ?? $0.count)
+      })
   }
 }
 
 @MainActor
 struct RepositorySearchTests {
+  @Test func totalCountSurvivesPaginationFailureAndClearsOnEditing() async throws {
+    let service = ControlledSearch()
+    let search = RepositorySearch(service: service)
+    #expect(search.totalCount == nil)
+    let first = try #require(search.submit("swift"))
+    await service.waitForRequest("swift")
+    await service.complete("swift", hasMore: true, totalCount: 2345, with: .success([repository()]))
+    await first.value
+    #expect(search.totalCount == 2345)
+    let more = try #require(search.loadMore())
+    await service.waitForRequest("swift", page: 2)
+    await service.complete("swift", page: 2, with: .failure(URLError(.timedOut)))
+    await more.value
+    #expect(search.totalCount == 2345)
+    search.inputChanged("empty")
+    #expect(search.totalCount == nil)
+    let empty = try #require(search.submit("empty"))
+    await service.waitForRequest("empty")
+    await service.complete("empty", with: .success([]))
+    await empty.value
+    #expect(search.totalCount == 0)
+  }
+
   @Test func trimsQueryAndPublishesSuccessIncludingEmptyResults() async throws {
     let service = ControlledSearch()
     let search = RepositorySearch(service: service)
@@ -495,6 +520,7 @@ struct GitHubRepositoryServiceTests {
     defer { service.session.invalidateAndCancel() }
     let result = try await service.search(query: query, page: page)
     #expect(result.repositories == [repository()])
+    #expect(result.totalCount == 2000)
     #expect(result.hasMore == (page < 34))
   }
 
