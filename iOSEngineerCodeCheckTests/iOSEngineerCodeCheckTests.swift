@@ -162,23 +162,29 @@ struct BookmarkPersistenceTests {
 }
 
 private actor ControlledSearch: RepositorySearching {
-  private var requests: [String: CheckedContinuation<[Repository], any Error>] = [:]
+  private var requests: [String: CheckedContinuation<RepositoryPage, any Error>] = [:]
   private var arrivals: [String: CheckedContinuation<Void, Never>] = [:]
 
-  func search(query: String) async throws -> [Repository] {
-    try await withCheckedThrowingContinuation { continuation in
+  func search(query: String, page: Int) async throws -> RepositoryPage {
+    let query = "\(query):\(page)"
+    return try await withCheckedThrowingContinuation { continuation in
       requests[query] = continuation
       arrivals.removeValue(forKey: query)?.resume()
     }
   }
 
-  func waitForRequest(_ query: String) async {
+  func waitForRequest(_ query: String, page: Int = 1) async {
+    let query = "\(query):\(page)"
     if requests[query] != nil { return }
     await withCheckedContinuation { arrivals[query] = $0 }
   }
 
-  func complete(_ query: String, with result: Result<[Repository], any Error>) {
-    requests.removeValue(forKey: query)?.resume(with: result)
+  func complete(
+    _ query: String, page: Int = 1, hasMore: Bool = false,
+    with result: Result<[Repository], any Error>
+  ) {
+    requests.removeValue(forKey: "\(query):\(page)")?.resume(
+      with: result.map { RepositoryPage(repositories: $0, hasMore: hasMore) })
   }
 }
 
@@ -322,10 +328,121 @@ struct RepositorySearchTests {
   }
 }
 
+@MainActor
+struct PaginationTests {
+  @Test func retriesSamePageRetainsResultsDeduplicatesAndStopsAtEnd() async throws {
+    let service = ControlledSearch()
+    let search = RepositorySearch(service: service)
+    #expect(search.loadMore() == nil)
+    let first = try #require(search.submit("swift"))
+    #expect(search.loadMore() == nil)
+    await service.waitForRequest("swift")
+    await service.complete("swift", hasMore: true, with: .success([repository(), repository()]))
+    await first.value
+    let more = try #require(search.loadMore())
+    #expect(search.loadMore() == nil)
+    #expect(search.phase == .loaded)
+    #expect(search.additionalPhase == .loading)
+    #expect(search.repositories == [repository()])
+    await service.waitForRequest("swift", page: 2)
+    await service.complete("swift", page: 2, with: .failure(URLError(.timedOut)))
+    await more.value
+    #expect(search.repositories == [repository()])
+    #expect(search.hasMore)
+    guard case .failed = search.additionalPhase else {
+      Issue.record("Expected an additional-page error")
+      return
+    }
+    let retry = try #require(search.loadMore())
+    #expect(search.additionalPhase == .loading)
+    await service.waitForRequest("swift", page: 2)
+    await service.complete(
+      "swift", page: 2, hasMore: true,
+      with: .success([repository(stars: 99), repository("second"), repository("second")]))
+    await retry.value
+    #expect(search.repositories == [repository(), repository("second")])
+    let last = try #require(search.loadMore())
+    await service.waitForRequest("swift", page: 3)
+    await service.complete("swift", page: 3, with: .success([]))
+    await last.value
+    #expect(search.repositories.count == 2)
+    #expect(!search.hasMore)
+    #expect(search.additionalPhase == .idle)
+    #expect(search.loadMore() == nil)
+  }
+
+  @Test(arguments: [false, true], [false, true])
+  func obsoleteAdditionalResponseCannotChangeNewSearch(fails: Bool, finishesFirst: Bool)
+    async throws
+  {
+    let service = ControlledSearch()
+    let search = RepositorySearch(service: service)
+    let first = try #require(search.submit("old"))
+    await service.waitForRequest("old")
+    await service.complete("old", hasMore: true, with: .success([repository()]))
+    await first.value
+    let more = try #require(search.loadMore())
+    await service.waitForRequest("old", page: 2)
+    let new = try #require(search.submit("new"))
+    await service.waitForRequest("new")
+    #expect(search.repositories.isEmpty)
+    #expect(search.additionalPhase == .idle)
+    #expect(!search.hasMore)
+    if !finishesFirst {
+      await service.complete("new", hasMore: true, with: .success([repository("new")]))
+      await new.value
+    }
+    await service.complete(
+      "old", page: 2,
+      with: fails ? .failure(URLError(.timedOut)) : .success([repository("old/late")]))
+    await more.value
+    if finishesFirst {
+      #expect(search.phase == .loading)
+      #expect(search.repositories.isEmpty)
+      await service.complete("new", hasMore: true, with: .success([repository("new")]))
+      await new.value
+    }
+    #expect(search.repositories == [repository("new")])
+    #expect(search.phase == .loaded)
+    #expect(search.additionalPhase == .idle)
+    #expect(search.hasMore)
+  }
+
+  @Test func cancelledAdditionalPageCanRetryWithoutLosingBookmarksOrResults() async throws {
+    let service = ControlledSearch()
+    let search = RepositorySearch(service: service)
+    let persistence = MemoryBookmarks()
+    let bookmarks = BookmarkStore(persistence: persistence)
+    bookmarks.toggle(repository(stars: 99))
+    let first = try #require(search.submit("swift"))
+    await service.waitForRequest("swift")
+    await service.complete("swift", hasMore: true, with: .success([repository()]))
+    await first.value
+    #expect(bookmarks.contains(search.repositories[0]))
+    let more = try #require(search.loadMore())
+    await service.waitForRequest("swift", page: 2)
+    more.cancel()
+    await service.complete("swift", page: 2, with: .success([repository("ignored")]))
+    await more.value
+    #expect(search.phase == .loaded)
+    #expect(search.additionalPhase == .idle)
+    #expect(search.repositories == [repository()])
+    let retry = try #require(search.loadMore())
+    await service.waitForRequest("swift", page: 2)
+    await service.complete("swift", page: 2, with: .success([repository("second")]))
+    await retry.value
+    bookmarks.toggle(search.repositories[0])
+    bookmarks.toggle(search.repositories[1])
+    #expect(!bookmarks.contains(repository()))
+    #expect(BookmarkStore(persistence: persistence).repositories == [repository("second")])
+  }
+}
+
 private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
   struct Stub: Sendable {
     let status: Int
     let data: Data
+    let page: Int
   }
   static let stubs = Mutex<[String: Stub]>([:])
   override class func canInit(with request: URLRequest) -> Bool { true }
@@ -334,10 +451,12 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     guard let url = request.url,
       url.host == "api.github.com", url.path == "/search/repositories",
       let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-      components.queryItems?.count == 1,
+      components.queryItems?.count == 3,
+      components.queryItems?.first(where: { $0.name == "per_page" })?.value == "30",
       components.percentEncodedQuery?.contains("+") == false,
       let query = components.queryItems?.first(where: { $0.name == "q" })?.value,
       let stub = Self.stubs.withLock({ $0[query] }),
+      components.queryItems?.first(where: { $0.name == "page" })?.value == String(stub.page),
       let response = HTTPURLResponse(
         url: url, statusCode: stub.status, httpVersion: nil, headerFields: nil)
     else {
@@ -352,11 +471,53 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
 }
 
 struct GitHubRepositoryServiceTests {
-  private func service(query: String, status: Int = 200, body: String) -> GitHubRepositoryService {
-    StubURLProtocol.stubs.withLock { $0[query] = .init(status: status, data: Data(body.utf8)) }
+  private func service(query: String, status: Int = 200, page: Int = 1, body: String)
+    -> GitHubRepositoryService
+  {
+    StubURLProtocol.stubs.withLock {
+      $0[query] = .init(status: status, data: Data(body.utf8), page: page)
+    }
     let configuration = URLSessionConfiguration.ephemeral
     configuration.protocolClasses = [StubURLProtocol.self]
     return GitHubRepositoryService(session: URLSession(configuration: configuration))
+  }
+
+  @Test(arguments: [1, 2, 33, 34])
+  func sendsPageAndStopsAtSearchLimit(page: Int) async throws {
+    let query = "page-\(page)"
+    let item = """
+      {"full_name":"owner/repository","language":null,"stargazers_count":1,
+      "watchers_count":2,"forks_count":3,"open_issues_count":4,"owner":{"avatar_url":"invalid avatar"}}
+      """
+    let service = service(
+      query: query, page: page,
+      body: "{\"total_count\":2000,\"items\":[\(item),\(item)]}")
+    defer { service.session.invalidateAndCancel() }
+    let result = try await service.search(query: query, page: page)
+    #expect(result.repositories == [repository()])
+    #expect(result.hasMore == (page < 34))
+  }
+
+  @Test(arguments: [0, 1, 30, 31])
+  func totalCountDeterminesContinuation(total: Int) async throws {
+    let query = "total-\(total)"
+    let item = """
+      {"full_name":"owner/repository","language":null,"stargazers_count":1,
+      "watchers_count":2,"forks_count":3,"open_issues_count":4,"owner":{"avatar_url":"invalid avatar"}}
+      """
+    let service = service(
+      query: query,
+      body: "{\"total_count\":\(total),\"items\":[\(item)]}")
+    defer { service.session.invalidateAndCancel() }
+    #expect(try await service.search(query: query, page: 1).hasMore == (total > 30))
+  }
+
+  @Test func emptyPageStopsEvenWithOutdatedTotalCount() async throws {
+    let service = service(query: "empty-page", page: 2, body: "{\"total_count\":100,\"items\":[]}")
+    defer { service.session.invalidateAndCancel() }
+    let result = try await service.search(query: "empty-page", page: 2)
+    #expect(result.repositories.isEmpty)
+    #expect(!result.hasMore)
   }
 
   @Test func decodesSnakeCaseAndKeepsReservedCharactersInOneQueryValue() async throws {
@@ -364,11 +525,11 @@ struct GitHubRepositoryServiceTests {
     let service = service(
       query: query,
       body: """
-        {"items":[{"full_name":"owner/repository","language":null,"stargazers_count":1,
+        {"total_count":1,"items":[{"full_name":"owner/repository","language":null,"stargazers_count":1,
         "watchers_count":2,"forks_count":3,"open_issues_count":4,"owner":{"avatar_url":"invalid avatar"}}]}
         """)
     defer { service.session.invalidateAndCancel() }
-    #expect(try await service.search(query: query) == [repository()])
+    #expect(try await service.search(query: query, page: 1).repositories == [repository()])
     #expect(repository().avatarURL == nil)
     #expect(repository().id == repository(stars: 999).id)
   }
@@ -378,7 +539,7 @@ struct GitHubRepositoryServiceTests {
     let service = service(query: query, status: status, body: "not JSON")
     defer { service.session.invalidateAndCancel() }
     await #expect(throws: GitHubRepositoryService.SearchError.httpStatus(status)) {
-      try await service.search(query: query)
+      try await service.search(query: query, page: 1)
     }
   }
 
@@ -387,9 +548,10 @@ struct GitHubRepositoryServiceTests {
       {"full_name":"owner/repository","language":null,"stargazers_count":1,
       "watchers_count":2,"forks_count":3,"open_issues_count":4,"owner":{"avatar_url":"invalid avatar"}}
       """
-    let service = service(query: "duplicates", body: "{\"items\":[\(item),\(item)]}")
+    let service = service(
+      query: "duplicates", body: "{\"total_count\":2,\"items\":[\(item),\(item)]}")
     defer { service.session.invalidateAndCancel() }
-    #expect(try await service.search(query: "duplicates") == [repository()])
+    #expect(try await service.search(query: "duplicates", page: 1).repositories == [repository()])
   }
 
   @Test(arguments: ["not JSON", "{}", "{\"items\":null}", "{\"items\":[{}]}"])
@@ -397,7 +559,7 @@ struct GitHubRepositoryServiceTests {
     let service = service(query: "malformed-" + body, body: body)
     defer { service.session.invalidateAndCancel() }
     await #expect(throws: DecodingError.self) {
-      try await service.search(query: "malformed-" + body)
+      try await service.search(query: "malformed-" + body, page: 1)
     }
   }
 }

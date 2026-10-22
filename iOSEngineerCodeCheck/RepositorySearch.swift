@@ -1,8 +1,13 @@
 import Foundation
 import Observation
 
+struct RepositoryPage: Sendable {
+  let repositories: [Repository]
+  let hasMore: Bool
+}
+
 protocol RepositorySearching: Sendable {
-  func search(query: String) async throws -> [Repository]
+  func search(query: String, page: Int) async throws -> RepositoryPage
 }
 
 struct GitHubRepositoryService: RepositorySearching {
@@ -12,12 +17,18 @@ struct GitHubRepositoryService: RepositorySearching {
     self.session = session
   }
 
-  func search(query: String) async throws -> [Repository] {
+  func search(query: String, page: Int) async throws -> RepositoryPage {
+    let pageSize = 30
+    guard (1...34).contains(page) else { throw SearchError.invalidURL }
     var components = URLComponents()
     components.scheme = "https"
     components.host = "api.github.com"
     components.path = "/search/repositories"
-    components.queryItems = [URLQueryItem(name: "q", value: query)]
+    components.queryItems = [
+      URLQueryItem(name: "q", value: query),
+      URLQueryItem(name: "page", value: String(page)),
+      URLQueryItem(name: "per_page", value: String(pageSize)),
+    ]
     // Escape literal plus signs for servers that interpret query strings as form data.
     components.percentEncodedQuery = components.percentEncodedQuery?.replacingOccurrences(
       of: "+", with: "%2B")
@@ -29,12 +40,18 @@ struct GitHubRepositoryService: RepositorySearching {
     }
     let decoder = JSONDecoder()
     decoder.keyDecodingStrategy = .convertFromSnakeCase
-    let items = try decoder.decode(SearchResponse.self, from: data).items
+    let result = try decoder.decode(SearchResponse.self, from: data)
+    let items = result.items
     var seen = Set<Repository.ID>()
-    return items.filter { seen.insert($0.id).inserted }
+    return RepositoryPage(
+      repositories: items.filter { seen.insert($0.id).inserted },
+      // GitHub exposes at most 1,000 matches. Use the server count, not the
+      // deduplicated row count, and stop if the server returns an empty page.
+      hasMore: !items.isEmpty && page * pageSize < min(result.totalCount, 1_000))
   }
 
   private struct SearchResponse: Decodable {
+    let totalCount: Int
     let items: [Repository]
   }
 
@@ -60,6 +77,14 @@ final class RepositorySearch {
     case failed(String)
   }
 
+  enum AdditionalPhase: Equatable {
+    case idle, loading
+    case failed(String)
+  }
+
+  private(set) var additionalPhase: AdditionalPhase = .idle
+  private(set) var hasMore = false
+  private var nextPage = 1
   private let service: any RepositorySearching
   private var requestID = UUID()
   private var submittedQuery: String?
@@ -79,29 +104,48 @@ final class RepositorySearch {
     guard !query.isEmpty else { return nil }
     submittedQuery = query
     phase = .loading
+    return request(query: query, page: 1)
+  }
+
+  @discardableResult
+  func loadMore() -> Task<Void, Never>? {
+    guard phase == .loaded, hasMore, additionalPhase != .loading,
+      let query = submittedQuery
+    else { return nil }
+    additionalPhase = .loading
+    return request(query: query, page: nextPage)
+  }
+
+  private func request(query: String, page: Int) -> Task<Void, Never> {
     let id = requestID
     let service = service
-    task = Task { [weak self] in
+    let task = Task { [weak self] in
       do {
-        let repositories = try await service.search(query: query)
+        let result = try await service.search(query: query, page: page)
+        try Task.checkCancellation()
         guard let self, self.requestID == id else { return }
-        guard !Task.isCancelled else {
-          self.phase = .idle
-          return
-        }
-        self.repositories = repositories
+        var seen = Set(self.repositories.map(\.id))
+        self.repositories.append(
+          contentsOf: result.repositories.filter { seen.insert($0.id).inserted })
+        self.nextPage = page + 1
+        self.hasMore = result.hasMore
         self.phase = .loaded
+        self.additionalPhase = .idle
+        self.task = nil
       } catch {
         guard let self, self.requestID == id else { return }
-        if Task.isCancelled || error is CancellationError
+        let cancelled =
+          Task.isCancelled || error is CancellationError
           || (error as? URLError)?.code == .cancelled
-        {
-          self.phase = .idle
+        if page == 1 {
+          self.phase = cancelled ? .idle : .failed(error.localizedDescription)
         } else {
-          self.phase = .failed(error.localizedDescription)
+          self.additionalPhase = cancelled ? .idle : .failed(error.localizedDescription)
         }
+        self.task = nil
       }
     }
+    self.task = task
     return task
   }
 
@@ -119,5 +163,8 @@ final class RepositorySearch {
     requestID = UUID()
     repositories = []
     phase = .idle
+    additionalPhase = .idle
+    nextPage = 1
+    hasMore = false
   }
 }

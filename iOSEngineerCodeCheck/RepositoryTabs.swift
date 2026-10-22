@@ -71,28 +71,55 @@ private struct RepositorySearchScreen: View {
   }
 
   var body: some View {
-    RepositoryList(repositories: search.repositories, emptyMessage: emptyMessage)
-      .navigationTitle("Search")
-      .navigationBarTitleDisplayMode(.inline)
-      .safeAreaInset(edge: .top) {
-        TextField("GitHubのリポジトリを検索", text: $query)
-          .accessibilityIdentifier("repositorySearchField")
-          .textFieldStyle(.roundedBorder)
-          .submitLabel(.search)
-          .focused($isSearchFocused)
-          .onSubmit { search.submit(query) }
-          .padding(.horizontal, 16)
-          .padding(.vertical, 8)
-          .background(.bar)
+    RepositoryList(repositories: search.repositories, emptyMessage: emptyMessage) {
+      paginationFooter
+    }
+    .navigationTitle("Search")
+    .navigationBarTitleDisplayMode(.inline)
+    .safeAreaInset(edge: .top) {
+      TextField("GitHubのリポジトリを検索", text: $query)
+        .accessibilityIdentifier("repositorySearchField")
+        .textFieldStyle(.roundedBorder)
+        .submitLabel(.search)
+        .focused($isSearchFocused)
+        .onSubmit { search.submit(query) }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.bar)
+    }
+    .overlay {
+      if search.phase == .loading {
+        ProgressView("検索中")
+          .accessibilityIdentifier("initialSearchLoading")
       }
-      .overlay {
-        if search.phase == .loading { ProgressView() }
-      }
-      .onChange(of: query) { _, value in
-        search.inputChanged(value)
-      }
-      .onDisappear { isSearchFocused = false }
+    }
+    .onChange(of: query) { _, value in
+      search.inputChanged(value)
+    }
+    .onDisappear { isSearchFocused = false }
   }
+
+  @ViewBuilder
+  private var paginationFooter: some View {
+    if search.phase == .loaded {
+      VStack(spacing: 8) {
+        switch search.additionalPhase {
+        case .loading:
+          ProgressView()
+          Text("読み込み中")
+        case .failed(let message):
+          Text("追加読み込みに失敗しました。\n\(message)")
+          Button("再試行") { search.loadMore() }
+        case .idle:
+          if search.hasMore {
+            Button("もっと読み込む") { search.loadMore() }
+          }
+        }
+      }
+      .padding()
+    }
+  }
+
 }
 
 #if DEBUG

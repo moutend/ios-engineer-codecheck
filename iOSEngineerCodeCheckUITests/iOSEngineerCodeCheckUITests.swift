@@ -29,6 +29,52 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
     field.typeText(query + "\n")
   }
 
+  func testPaginationFailureRetryAndBookmarkSynchronization() {
+    let app = launchApp()
+    search("pagination", in: app)
+    let first = app.staticTexts["example/swift"]
+    XCTAssertTrue(first.waitForExistence(timeout: 5))
+    app.buttons["もっと読み込む"].tap()
+    XCTAssertTrue(app.staticTexts["読み込み中"].waitForExistence(timeout: 5))
+    XCTAssertTrue(first.exists)
+    XCTAssertFalse(app.buttons["もっと読み込む"].exists)
+    XCTAssertFalse(app.otherElements["initialSearchLoading"].exists)
+    XCTAssertTrue(app.buttons["再試行"].waitForExistence(timeout: 5))
+    XCTAssertTrue(first.exists)
+    XCTAssertTrue(
+      app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "追加読み込みに失敗しました。"))
+        .firstMatch.exists)
+    app.buttons["再試行"].tap()
+    XCTAssertTrue(app.staticTexts["読み込み中"].waitForExistence(timeout: 5))
+    let second = app.staticTexts["example/second"]
+    XCTAssertTrue(second.waitForExistence(timeout: 5))
+    XCTAssertEqual(app.staticTexts.matching(identifier: "example/swift").count, 1)
+    XCTAssertFalse(app.buttons["もっと読み込む"].exists)
+    XCTAssertFalse(app.buttons["再試行"].exists)
+    second.tap()
+    app.buttons["Add to Bookmark"].tap()
+    app.tabBars.buttons["Bookmark"].tap()
+    XCTAssertTrue(second.waitForExistence(timeout: 5))
+    XCTAssertFalse(app.buttons["もっと読み込む"].exists)
+    second.tap()
+    app.buttons["Remove from Bookmark"].tap()
+    app.tabBars.buttons["Search"].tap()
+    XCTAssertTrue(app.buttons["Add to Bookmark"].waitForExistence(timeout: 5))
+  }
+
+  func testEditingDuringAdditionalLoadingClearsPreviousSearch() {
+    let app = launchApp()
+    search("pagination", in: app)
+    XCTAssertTrue(app.buttons["もっと読み込む"].waitForExistence(timeout: 5))
+    app.buttons["もっと読み込む"].tap()
+    XCTAssertTrue(app.staticTexts["読み込み中"].waitForExistence(timeout: 5))
+    search("empty", in: app)
+    XCTAssertTrue(app.staticTexts["該当するリポジトリはありません"].waitForExistence(timeout: 5))
+    XCTAssertFalse(app.staticTexts["example/swift"].exists)
+    XCTAssertFalse(app.staticTexts["読み込み中"].exists)
+    XCTAssertFalse(app.buttons["再試行"].exists)
+  }
+
   func testEditingSearchAndEmptyFailureLoadingStates() {
     let app = launchApp()
     search("swift", in: app)
