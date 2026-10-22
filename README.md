@@ -37,7 +37,7 @@ AI コーディングアシスタントの利用は通常の開発作業と同�
 
 ## 開発時の構成と検証
 
-Issue #1で整理した責務・状態の所有、保存データの移行、ネットワークに依存しないテストの実行方法は[設計・検証メモ](docs/issue-1.md)を参照してください。
+ビルド・実行・テストの手順は[開発手順](docs/Development.md)を参照してください。各課題の作業記録は、対応するIssueのコメント（[Issue #1](https://github.com/moutend/ios-engineer-codecheck/issues/1#issuecomment-6337367117)、[Issue #2](https://github.com/moutend/ios-engineer-codecheck/issues/2#issuecomment-6337371174)）に記載しています。
 
 ## 課題取り組み方法
 
