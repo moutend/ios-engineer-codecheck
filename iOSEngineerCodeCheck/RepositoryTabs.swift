@@ -141,7 +141,10 @@ private struct RepositorySearchScreen: View {
         switch search.additionalPhase {
         case .loading:
           ProgressView()
+            .accessibilityLabel("読み込み中")
+            .accessibilityIdentifier("additionalSearchLoading")
           Text("読み込み中")
+            .accessibilityHidden(true)
         case .failed(let message):
           Text("追加読み込みに失敗しました。\n\(message)")
           Button("再試行") { search.loadMore() }
