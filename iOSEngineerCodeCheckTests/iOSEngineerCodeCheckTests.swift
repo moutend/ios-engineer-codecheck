@@ -589,3 +589,50 @@ struct GitHubRepositoryServiceTests {
     }
   }
 }
+
+@MainActor
+struct SearchHistoryTests {
+  @Test func deletesOnlySelectedFilteredSuggestionsAndPersists() throws {
+    let suite = "SearchHistoryTests.\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let history = SearchHistory(defaults: defaults)
+    for query in ["swift", "swiftui", "kotlin", "swift package", "rust"] {
+      history.record(query)
+    }
+    history.remove(suggestionsAt: IndexSet([0, 2]), matching: " SWI ")
+    #expect(history.queries == ["rust", "kotlin", "swiftui"])
+    #expect(SearchHistory(defaults: defaults).queries == history.queries)
+    history.remove(suggestionsAt: IndexSet(integer: 2), matching: "")
+    #expect(history.queries == ["rust", "kotlin"])
+    history.remove(suggestionsAt: IndexSet([0, 1]), matching: "")
+    #expect(SearchHistory(defaults: defaults).queries.isEmpty)
+  }
+
+  @Test func trimsDeduplicatesAndFiltersRecentQueries() {
+    let history = SearchHistory()
+    history.record("  Swift ")
+    history.record("kotlin")
+    history.record("SWIFT")
+    history.record(" \n ")
+    #expect(history.queries == ["SWIFT", "kotlin"])
+    #expect(history.suggestions(for: " wi ") == ["SWIFT"])
+    #expect(history.suggestions(for: "missing").isEmpty)
+    #expect(history.suggestions(for: "") == history.queries)
+  }
+
+  @Test func boundsHistoryAndPersistsRecordsAndDeletion() throws {
+    let suite = "SearchHistoryTests.\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let history = SearchHistory(defaults: defaults)
+    for index in 0..<25 { history.record("query-\(index)") }
+    #expect(history.queries.count == 20)
+    #expect(history.queries.first == "query-24")
+    #expect(history.queries.last == "query-5")
+    #expect(SearchHistory(defaults: defaults).queries == history.queries)
+    history.clear()
+    #expect(history.queries.isEmpty)
+    #expect(SearchHistory(defaults: defaults).queries.isEmpty)
+  }
+}

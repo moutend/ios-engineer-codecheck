@@ -13,11 +13,13 @@ struct IOSEngineerCodeCheckApp: App {
     #if DEBUG
       if let testID = ProcessInfo.processInfo.environment["BOOKMARK_UI_TEST_ID"] {
         RepositoryTabs(
-          service: UITestRepositoryService(), persistence: uiTestPersistence(testID: testID))
+          service: UITestRepositoryService(), persistence: uiTestPersistence(testID: testID),
+          historyDefaults: UserDefaults(suiteName: "SearchHistoryUITests.\(testID)"))
       } else if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
         // The unit-test host must not read or migrate a developer's bookmarks.
         RepositoryTabs(
-          service: PreviewRepositoryService(), persistence: PreviewBookmarkPersistence())
+          service: PreviewRepositoryService(), persistence: PreviewBookmarkPersistence(),
+          historyDefaults: nil)
       } else {
         RepositoryTabs()
       }

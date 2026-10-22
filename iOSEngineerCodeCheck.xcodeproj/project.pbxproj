@@ -14,6 +14,7 @@
 		ABC100000000000000000001 /* RepositorySearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC000000000000000000001 /* RepositorySearch.swift */; };
 		ABC100000000000000000002 /* BookmarkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC000000000000000000002 /* BookmarkStore.swift */; };
 		ABC100000000000000000003 /* BookmarkPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC000000000000000000003 /* BookmarkPersistence.swift */; };
+		ABC100000000000000000004 /* SearchHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC000000000000000000004 /* SearchHistory.swift */; };
 		BFD945DF244DC5E80012785A /* iOSEngineerCodeCheckApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFD945DE244DC5E80012785A /* iOSEngineerCodeCheckApp.swift */; };
 		BFD945E8244DC5EB0012785A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BFD945E7244DC5EB0012785A /* Assets.xcassets */; };
 		BFD945F6244DC5EB0012785A /* iOSEngineerCodeCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFD945F5244DC5EB0012785A /* iOSEngineerCodeCheckTests.swift */; };
@@ -45,6 +46,7 @@
 		ABC000000000000000000001 /* RepositorySearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositorySearch.swift; sourceTree = "<group>"; };
 		ABC000000000000000000002 /* BookmarkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkStore.swift; sourceTree = "<group>"; };
 		ABC000000000000000000003 /* BookmarkPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkPersistence.swift; sourceTree = "<group>"; };
+		ABC000000000000000000004 /* SearchHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchHistory.swift; sourceTree = "<group>"; };
 		BFD945DB244DC5E80012785A /* iOSEngineerCodeCheck.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iOSEngineerCodeCheck.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BFD945DE244DC5E80012785A /* iOSEngineerCodeCheckApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSEngineerCodeCheckApp.swift; sourceTree = "<group>"; };
 		BFD945E7244DC5EB0012785A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -108,6 +110,7 @@
 				ABC000000000000000000001 /* RepositorySearch.swift */,
 				ABC000000000000000000002 /* BookmarkStore.swift */,
 				ABC000000000000000000003 /* BookmarkPersistence.swift */,
+				ABC000000000000000000004 /* SearchHistory.swift */,
 				BFD945DE244DC5E80012785A /* iOSEngineerCodeCheckApp.swift */,
 				A1B2C3D32CFA200100ABC001 /* Repository.swift */,
 				4F8F302A2CFA100100A8C301 /* RepositoryTabs.swift */,
@@ -278,6 +281,7 @@
 				ABC100000000000000000001 /* RepositorySearch.swift in Sources */,
 				ABC100000000000000000002 /* BookmarkStore.swift in Sources */,
 				ABC100000000000000000003 /* BookmarkPersistence.swift in Sources */,
+				ABC100000000000000000004 /* SearchHistory.swift in Sources */,
 				BFD945DF244DC5E80012785A /* iOSEngineerCodeCheckApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
