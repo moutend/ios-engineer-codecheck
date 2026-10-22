@@ -34,6 +34,7 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
     search("pagination", in: app)
     let first = app.staticTexts["example/swift"]
     XCTAssertTrue(first.waitForExistence(timeout: 5))
+    XCTAssertEqual(app.staticTexts["searchResultCount"].label, "検索結果: 2件")
     app.buttons["もっと読み込む"].tap()
     XCTAssertTrue(app.staticTexts["読み込み中"].waitForExistence(timeout: 5))
     XCTAssertTrue(first.exists)
@@ -70,6 +71,7 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["読み込み中"].waitForExistence(timeout: 5))
     search("empty", in: app)
     XCTAssertTrue(app.staticTexts["該当するリポジトリはありません"].waitForExistence(timeout: 5))
+    XCTAssertEqual(app.staticTexts["searchResultCount"].label, "検索結果: 0件")
     XCTAssertFalse(app.staticTexts["example/swift"].exists)
     XCTAssertFalse(app.staticTexts["読み込み中"].exists)
     XCTAssertFalse(app.buttons["再試行"].exists)

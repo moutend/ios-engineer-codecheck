@@ -87,6 +87,23 @@ private struct RepositorySearchScreen: View {
         .padding(.vertical, 8)
         .background(.bar)
     }
+    .safeAreaInset(edge: .top) {
+      if let count = search.totalCount {
+        VStack(alignment: .leading, spacing: 4) {
+          Text("検索結果: \(count.formatted())件")
+            .accessibilityIdentifier("searchResultCount")
+          if count > 1_000 {
+            Text("表示できるのは上位1,000件までです。検索条件を絞り込めます。")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.bar)
+      }
+    }
     .overlay {
       if search.phase == .loading {
         ProgressView("検索中")

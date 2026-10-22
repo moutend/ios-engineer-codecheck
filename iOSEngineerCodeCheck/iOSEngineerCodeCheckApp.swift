@@ -51,7 +51,7 @@ struct IOSEngineerCodeCheckApp: App {
             fullName: "example/swift", language: "Swift", stargazersCount: 42,
             watchersCount: 10, forksCount: 3, openIssuesCount: 2,
             owner: .init(avatarUrl: ""))
-        ], hasMore: false)
+        ], hasMore: false, totalCount: 1)
     }
   }
 
@@ -70,7 +70,7 @@ struct IOSEngineerCodeCheckApp: App {
         if page == 1 {
           failedPage = false
           let first = try await PreviewRepositoryService().search(query: query, page: page)
-          return RepositoryPage(repositories: first.repositories, hasMore: true)
+          return RepositoryPage(repositories: first.repositories, hasMore: true, totalCount: 2)
         }
         try await Task.sleep(for: .seconds(2))
         if !failedPage {
@@ -81,10 +81,11 @@ struct IOSEngineerCodeCheckApp: App {
         let second = Repository(
           fullName: "example/second", language: "Swift", stargazersCount: 7,
           watchersCount: 1, forksCount: 1, openIssuesCount: 0, owner: .init(avatarUrl: ""))
-        return RepositoryPage(repositories: first.repositories + [second], hasMore: false)
+        return RepositoryPage(
+          repositories: first.repositories + [second], hasMore: false, totalCount: 2)
       }
       switch query {
-      case "empty": return RepositoryPage(repositories: [], hasMore: false)
+      case "empty": return RepositoryPage(repositories: [], hasMore: false, totalCount: 0)
       case "failure": throw URLError(.notConnectedToInternet)
       case "slow":
         try await Task.sleep(for: .seconds(30))
@@ -97,7 +98,7 @@ struct IOSEngineerCodeCheckApp: App {
               language: "JavaScript", stargazersCount: 123_456_789,
               watchersCount: 987_654_321, forksCount: 123_456_789,
               openIssuesCount: 987_654_321, owner: .init(avatarUrl: ""))
-          ], hasMore: false)
+          ], hasMore: false, totalCount: 1)
       default: return try await PreviewRepositoryService().search(query: query, page: page)
       }
     }
