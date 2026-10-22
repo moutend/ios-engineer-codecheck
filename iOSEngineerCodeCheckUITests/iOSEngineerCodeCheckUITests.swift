@@ -20,13 +20,39 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
   }
 
   private func search(_ query: String, in app: XCUIApplication) {
-    let field = app.textFields["repositorySearchField"]
+    let field = app.searchFields.firstMatch
     XCTAssertTrue(field.waitForExistence(timeout: 5))
     field.tap()
     if let value = field.value as? String, value != field.placeholderValue {
       field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: value.count))
     }
     field.typeText(query + "\n")
+  }
+
+  func testHistorySuggestionSurvivesRelaunchAndCanBeCleared() {
+    let app = launchApp()
+    search("swift", in: app)
+    XCTAssertTrue(app.staticTexts["searchResultCount"].waitForExistence(timeout: 5))
+    app.terminate()
+    app.launch()
+    let field = app.searchFields.firstMatch
+    XCTAssertTrue(field.waitForExistence(timeout: 5))
+    field.tap()
+    field.typeText("swi")
+    let suggestion = app.buttons["swift"]
+    XCTAssertTrue(suggestion.waitForExistence(timeout: 5))
+    suggestion.tap()
+    XCTAssertTrue(app.staticTexts["example/swift"].waitForExistence(timeout: 5))
+    XCTAssertEqual(app.staticTexts["searchResultCount"].label, "検索結果: 1件")
+    field.tap()
+    field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 5))
+    app.buttons["検索履歴を消去"].tap()
+    XCTAssertFalse(suggestion.exists)
+    app.terminate()
+    app.launch()
+    app.searchFields.firstMatch.tap()
+    XCTAssertFalse(app.buttons["swift"].exists)
+    XCTAssertFalse(app.buttons["検索履歴を消去"].exists)
   }
 
   func testPaginationFailureRetryAndBookmarkSynchronization() {
@@ -83,7 +109,7 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
     let result = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "example/swift"))
       .firstMatch
     XCTAssertTrue(result.waitForExistence(timeout: 5))
-    let field = app.textFields["repositorySearchField"]
+    let field = app.searchFields.firstMatch
     field.tap()
     field.typeText("x")
     XCTAssertTrue(app.staticTexts["GitHubのリポジトリを検索できます"].waitForExistence(timeout: 5))
@@ -161,7 +187,7 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
     app.launchEnvironment["BOOKMARK_UI_TEST_ID"] = UUID().uuidString
     app.launch()
 
-    let searchField = app.textFields["repositorySearchField"]
+    let searchField = app.searchFields.firstMatch
     XCTAssertTrue(searchField.waitForExistence(timeout: 5))
     searchField.tap()
     searchField.typeText("swift\n")

@@ -589,3 +589,33 @@ struct GitHubRepositoryServiceTests {
     }
   }
 }
+
+@MainActor
+struct SearchHistoryTests {
+  @Test func trimsDeduplicatesAndFiltersRecentQueries() {
+    let history = SearchHistory()
+    history.record("  Swift ")
+    history.record("kotlin")
+    history.record("SWIFT")
+    history.record(" \n ")
+    #expect(history.queries == ["SWIFT", "kotlin"])
+    #expect(history.suggestions(for: " wi ") == ["SWIFT"])
+    #expect(history.suggestions(for: "missing").isEmpty)
+    #expect(history.suggestions(for: "") == history.queries)
+  }
+
+  @Test func boundsHistoryAndPersistsRecordsAndDeletion() throws {
+    let suite = "SearchHistoryTests.\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let history = SearchHistory(defaults: defaults)
+    for index in 0..<25 { history.record("query-\(index)") }
+    #expect(history.queries.count == 20)
+    #expect(history.queries.first == "query-24")
+    #expect(history.queries.last == "query-5")
+    #expect(SearchHistory(defaults: defaults).queries == history.queries)
+    history.clear()
+    #expect(history.queries.isEmpty)
+    #expect(SearchHistory(defaults: defaults).queries.isEmpty)
+  }
+}

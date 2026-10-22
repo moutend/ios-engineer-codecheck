@@ -3,14 +3,17 @@ import SwiftUI
 struct RepositoryTabs: View {
   @State private var search: RepositorySearch
   @State private var bookmarks: BookmarkStore
+  @State private var history: SearchHistory
   @State private var selectedTab = Tab.search
 
   private enum Tab { case search, bookmarks }
 
   init(
     service: any RepositorySearching = GitHubRepositoryService(),
-    persistence: any BookmarkPersistence = FileBookmarkPersistence()
+    persistence: any BookmarkPersistence = FileBookmarkPersistence(),
+    historyDefaults: UserDefaults? = .standard
   ) {
+    _history = State(initialValue: SearchHistory(defaults: historyDefaults))
     _search = State(initialValue: RepositorySearch(service: service))
     _bookmarks = State(initialValue: BookmarkStore(persistence: persistence))
   }
@@ -36,7 +39,7 @@ struct RepositoryTabs: View {
       .tag(Tab.bookmarks)
 
       NavigationStack {
-        RepositorySearchScreen(search: search)
+        RepositorySearchScreen(search: search, history: history)
       }
       .tabItem { Label("Search", systemImage: "magnifyingglass.circle.fill") }
       .tag(Tab.search)
@@ -58,8 +61,8 @@ struct RepositoryTabs: View {
 
 private struct RepositorySearchScreen: View {
   let search: RepositorySearch
+  let history: SearchHistory
   @State private var query = ""
-  @FocusState private var isSearchFocused: Bool
 
   private var emptyMessage: String {
     switch search.phase {
@@ -76,16 +79,26 @@ private struct RepositorySearchScreen: View {
     }
     .navigationTitle("Search")
     .navigationBarTitleDisplayMode(.inline)
-    .safeAreaInset(edge: .top) {
-      TextField("GitHubのリポジトリを検索", text: $query)
-        .accessibilityIdentifier("repositorySearchField")
-        .textFieldStyle(.roundedBorder)
-        .submitLabel(.search)
-        .focused($isSearchFocused)
-        .onSubmit { search.submit(query) }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(.bar)
+    .searchable(
+      text: $query,
+      placement: .navigationBarDrawer(displayMode: .always),
+      prompt: "GitHubのリポジトリを検索"
+    )
+    .searchSuggestions {
+      let suggestions = history.suggestions(for: query)
+      if search.phase == .idle && !suggestions.isEmpty {
+        Section("検索履歴") {
+          ForEach(suggestions, id: \.self) { term in
+            Text(term)
+              .searchCompletion(term)
+          }
+          Button("検索履歴を消去", role: .destructive) { history.clear() }
+        }
+      }
+    }
+    .onSubmit(of: .search) {
+      history.record(query)
+      search.submit(query)
     }
     .safeAreaInset(edge: .top) {
       if let count = search.totalCount {
@@ -113,7 +126,6 @@ private struct RepositorySearchScreen: View {
     .onChange(of: query) { _, value in
       search.inputChanged(value)
     }
-    .onDisappear { isSearchFocused = false }
   }
 
   @ViewBuilder
@@ -141,6 +153,8 @@ private struct RepositorySearchScreen: View {
 
 #if DEBUG
   #Preview {
-    RepositoryTabs(service: PreviewRepositoryService(), persistence: PreviewBookmarkPersistence())
+    RepositoryTabs(
+      service: PreviewRepositoryService(), persistence: PreviewBookmarkPersistence(),
+      historyDefaults: nil)
   }
 #endif
