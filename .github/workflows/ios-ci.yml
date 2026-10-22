@@ -47,7 +47,6 @@ jobs:
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             -skipPackagePluginValidation \
-            IPHONEOS_DEPLOYMENT_TARGET=26.5 \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee artifacts/build.log
       - name: Run all unit and UI tests
@@ -61,7 +60,6 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             -resultBundlePath artifacts/Tests.xcresult \
             -parallel-testing-enabled NO \
-            IPHONEOS_DEPLOYMENT_TARGET=26.5 \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee artifacts/test.log
       - name: Upload logs and test results
