@@ -29,6 +29,24 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
     field.typeText(query + "\n")
   }
 
+  func testSortChangesResultOrderAndRetainsSelectionForNextSearch() {
+    let app = launchApp()
+    search("sorting", in: app)
+    let rows = app.staticTexts.matching(identifier: "repositoryName")
+    XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5))
+    XCTAssertEqual(rows.element(boundBy: 0).label, "example/swift")
+    app.buttons["searchSortMenu"].tap()
+    app.buttons["スター数が少ない順"].tap()
+    XCTAssertTrue(app.staticTexts["searchResultCount"].waitForExistence(timeout: 5))
+    XCTAssertEqual(rows.element(boundBy: 0).label, "example/second")
+    search("empty", in: app)
+    XCTAssertTrue(app.staticTexts["該当するリポジトリはありません"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["searchSortMenu"].label.contains("スター数が少ない順"))
+    search("sorting", in: app)
+    XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5))
+    XCTAssertEqual(rows.element(boundBy: 0).label, "example/second")
+  }
+
   func testHistorySuggestionSurvivesRelaunchAndCanBeCleared() {
     let app = launchApp()
     search("swift", in: app)

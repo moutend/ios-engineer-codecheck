@@ -46,7 +46,9 @@ struct IOSEngineerCodeCheckApp: App {
 
 #if DEBUG
   struct PreviewRepositoryService: RepositorySearching {
-    func search(query: String, page: Int) async throws -> RepositoryPage {
+    func search(
+      query: String, page: Int, sort: RepositorySort = .bestMatch
+    ) async throws -> RepositoryPage {
       RepositoryPage(
         repositories: [
           Repository(
@@ -67,7 +69,18 @@ struct IOSEngineerCodeCheckApp: App {
   actor UITestRepositoryService: RepositorySearching {
     private var failedPage = false
 
-    func search(query: String, page: Int) async throws -> RepositoryPage {
+    func search(
+      query: String, page: Int, sort: RepositorySort = .bestMatch
+    ) async throws -> RepositoryPage {
+      if query == "sorting" {
+        let first = try await PreviewRepositoryService().search(query: query, page: page)
+        let second = Repository(
+          fullName: "example/second", language: "Swift", stargazersCount: 7,
+          watchersCount: 1, forksCount: 1, openIssuesCount: 0, owner: .init(avatarUrl: ""))
+        let items =
+          sort == .starsAscending ? [second] + first.repositories : first.repositories + [second]
+        return RepositoryPage(repositories: items, hasMore: false, totalCount: 2)
+      }
       if query == "pagination" {
         if page == 1 {
           failedPage = false

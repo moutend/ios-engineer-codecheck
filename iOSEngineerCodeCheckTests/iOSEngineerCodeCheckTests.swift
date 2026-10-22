@@ -165,25 +165,26 @@ private actor ControlledSearch: RepositorySearching {
   private var requests: [String: CheckedContinuation<RepositoryPage, any Error>] = [:]
   private var arrivals: [String: CheckedContinuation<Void, Never>] = [:]
 
-  func search(query: String, page: Int) async throws -> RepositoryPage {
-    let query = "\(query):\(page)"
+  func search(query: String, page: Int, sort: RepositorySort) async throws -> RepositoryPage {
+    let query = "\(query):\(page):\(sort.rawValue)"
     return try await withCheckedThrowingContinuation { continuation in
       requests[query] = continuation
       arrivals.removeValue(forKey: query)?.resume()
     }
   }
 
-  func waitForRequest(_ query: String, page: Int = 1) async {
-    let query = "\(query):\(page)"
+  func waitForRequest(_ query: String, page: Int = 1, sort: RepositorySort = .bestMatch) async {
+    let query = "\(query):\(page):\(sort.rawValue)"
     if requests[query] != nil { return }
     await withCheckedContinuation { arrivals[query] = $0 }
   }
 
   func complete(
     _ query: String, page: Int = 1, hasMore: Bool = false, totalCount: Int? = nil,
+    sort: RepositorySort = .bestMatch,
     with result: Result<[Repository], any Error>
   ) {
-    requests.removeValue(forKey: "\(query):\(page)")?.resume(
+    requests.removeValue(forKey: "\(query):\(page):\(sort.rawValue)")?.resume(
       with: result.map {
         RepositoryPage(repositories: $0, hasMore: hasMore, totalCount: totalCount ?? $0.count)
       })
@@ -192,6 +193,69 @@ private actor ControlledSearch: RepositorySearching {
 
 @MainActor
 struct RepositorySearchTests {
+  @Test func sortingDuringInitialLoadKeepsSelectionThroughFailureAndRetry() async throws {
+    let service = ControlledSearch()
+    let search = RepositorySearch(service: service)
+    #expect(search.changeSort(.forksAscending) == nil)
+    let first = try #require(search.submit("swift"))
+    await service.waitForRequest("swift", sort: .forksAscending)
+    let changed = try #require(search.changeSort(.updatedDescending))
+    await service.waitForRequest("swift", sort: .updatedDescending)
+    await service.complete("swift", sort: .forksAscending, with: .success([repository("stale")]))
+    await first.value
+    #expect(search.phase == .loading)
+    #expect(search.totalCount == nil)
+    await service.complete("swift", sort: .updatedDescending, with: .failure(URLError(.timedOut)))
+    await changed.value
+    guard case .failed = search.phase else {
+      Issue.record("Expected the sorted request's failure")
+      return
+    }
+    let retry = try #require(search.submit("swift"))
+    await service.waitForRequest("swift", sort: .updatedDescending)
+    await service.complete("swift", sort: .updatedDescending, with: .success([repository("fresh")]))
+    await retry.value
+    #expect(search.repositories == [repository("fresh")])
+    #expect(search.sort == .updatedDescending)
+  }
+
+  @Test(arguments: [false, true])
+  func sortingRestartsPaginationAndRejectsOldResponses(fails: Bool) async throws {
+    let service = ControlledSearch()
+    let search = RepositorySearch(service: service)
+    let first = try #require(search.submit("swift"))
+    await service.waitForRequest("swift")
+    await service.complete("swift", hasMore: true, with: .success([repository("old")]))
+    await first.value
+    let oldPage = try #require(search.loadMore())
+    await service.waitForRequest("swift", page: 2)
+    let sorted = try #require(search.changeSort(.starsAscending))
+    #expect(search.repositories.isEmpty)
+    #expect(search.totalCount == nil)
+    #expect(search.phase == .loading)
+    await service.waitForRequest("swift", sort: .starsAscending)
+    await service.complete(
+      "swift", hasMore: true, sort: .starsAscending, with: .success([repository("sorted")]))
+    await sorted.value
+    await service.complete(
+      "swift", page: 2,
+      with: fails ? .failure(URLError(.timedOut)) : .success([repository("obsolete")]))
+    await oldPage.value
+    #expect(search.repositories == [repository("sorted")])
+    #expect(search.additionalPhase == .idle)
+    #expect(search.changeSort(.starsAscending) == nil)
+    let more = try #require(search.loadMore())
+    await service.waitForRequest("swift", page: 2, sort: .starsAscending)
+    await service.complete(
+      "swift", page: 2, sort: .starsAscending, with: .success([repository("next")]))
+    await more.value
+    #expect(search.repositories == [repository("sorted"), repository("next")])
+    search.inputChanged("draft")
+    #expect(search.changeSort(.updatedDescending) == nil)
+    #expect(search.phase == .idle)
+    #expect(search.sort == .updatedDescending)
+  }
+
   @Test func totalCountSurvivesPaginationFailureAndClearsOnEditing() async throws {
     let service = ControlledSearch()
     let search = RepositorySearch(service: service)
@@ -468,6 +532,8 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     let status: Int
     let data: Data
     let page: Int
+    var sort: String? = nil
+    var order: String? = nil
   }
   static let stubs = Mutex<[String: Stub]>([:])
   override class func canInit(with request: URLRequest) -> Bool { true }
@@ -476,11 +542,13 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     guard let url = request.url,
       url.host == "api.github.com", url.path == "/search/repositories",
       let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-      components.queryItems?.count == 3,
       components.queryItems?.first(where: { $0.name == "per_page" })?.value == "30",
       components.percentEncodedQuery?.contains("+") == false,
       let query = components.queryItems?.first(where: { $0.name == "q" })?.value,
       let stub = Self.stubs.withLock({ $0[query] }),
+      components.queryItems?.count == (stub.sort == nil ? 3 : 5),
+      components.queryItems?.first(where: { $0.name == "sort" })?.value == stub.sort,
+      components.queryItems?.first(where: { $0.name == "order" })?.value == stub.order,
       components.queryItems?.first(where: { $0.name == "page" })?.value == String(stub.page),
       let response = HTTPURLResponse(
         url: url, statusCode: stub.status, httpVersion: nil, headerFields: nil)
@@ -496,15 +564,36 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
 }
 
 struct GitHubRepositoryServiceTests {
-  private func service(query: String, status: Int = 200, page: Int = 1, body: String)
+  private func service(
+    query: String, status: Int = 200, page: Int = 1, sort: String? = nil,
+    order: String? = nil, body: String
+  )
     -> GitHubRepositoryService
   {
     StubURLProtocol.stubs.withLock {
-      $0[query] = .init(status: status, data: Data(body.utf8), page: page)
+      $0[query] = .init(status: status, data: Data(body.utf8), page: page, sort: sort, order: order)
     }
     let configuration = URLSessionConfiguration.ephemeral
     configuration.protocolClasses = [StubURLProtocol.self]
     return GitHubRepositoryService(session: URLSession(configuration: configuration))
+  }
+
+  @Test(
+    arguments: [
+      (RepositorySort.bestMatch, nil, nil),
+      (.starsDescending, "stars", "desc"), (.starsAscending, "stars", "asc"),
+      (.forksDescending, "forks", "desc"), (.forksAscending, "forks", "asc"),
+      (.updatedDescending, "updated", "desc"), (.updatedAscending, "updated", "asc"),
+    ] as [(RepositorySort, String?, String?)])
+  func sendsSortAndOrderToGitHub(option: RepositorySort, field: String?, order: String?)
+    async throws
+  {
+    let query = "sort-\(option.rawValue)"
+    let service = service(
+      query: query, page: 2, sort: field, order: order, body: "{\"total_count\":0,\"items\":[]}")
+    defer { service.session.invalidateAndCancel() }
+    let result = try await service.search(query: query, page: 2, sort: option)
+    #expect(result.totalCount == 0)
   }
 
   @Test(arguments: [1, 2, 33, 34])
