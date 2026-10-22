@@ -53,8 +53,8 @@ struct GitHubRepositoryService: RepositorySearching {
   func search(
     query: String, page: Int, sort: RepositorySort = .bestMatch
   ) async throws -> RepositoryPage {
-    let pageSize = 30
-    guard (1...34).contains(page) else { throw SearchError.invalidURL }
+    let pageSize = 50
+    guard (1...20).contains(page) else { throw SearchError.invalidURL }
     var components = URLComponents()
     components.scheme = "https"
     components.host = "api.github.com"
