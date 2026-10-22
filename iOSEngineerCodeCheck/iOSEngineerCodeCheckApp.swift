@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct iOSEngineerCodeCheckApp: App {
+struct IOSEngineerCodeCheckApp: App {
   var body: some Scene {
     WindowGroup {
       rootView

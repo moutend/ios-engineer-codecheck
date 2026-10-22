@@ -1,7 +1,7 @@
 import XCTest
 
 @MainActor
-final class iOSEngineerCodeCheckUITests: XCTestCase {
+final class IOSEngineerCodeCheckUITests: XCTestCase {
   override func setUpWithError() throws {
     continueAfterFailure = false
   }
