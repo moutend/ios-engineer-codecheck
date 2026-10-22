@@ -63,6 +63,7 @@ private struct RepositorySearchScreen: View {
   let search: RepositorySearch
   let history: SearchHistory
   @State private var query = ""
+  @FocusState private var isSearchFocused: Bool
 
   private var emptyMessage: String {
     switch search.phase {
@@ -84,6 +85,7 @@ private struct RepositorySearchScreen: View {
       placement: .navigationBarDrawer(displayMode: .always),
       prompt: "GitHubのリポジトリを検索"
     )
+    .searchFocused($isSearchFocused)
     .searchSuggestions {
       let suggestions = history.suggestions(for: query)
       if search.phase == .idle && !suggestions.isEmpty {
@@ -92,6 +94,7 @@ private struct RepositorySearchScreen: View {
             Button(term) {
               query = term
               submitSearch()
+              isSearchFocused = false
             }
           }
           .onDelete { offsets in
