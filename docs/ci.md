@@ -4,7 +4,7 @@
 
 - GitHub-hosted `macos-26`、Xcode **26.6**（明示指定・バージョン確認）
 - iPhone 17 / iOS 26.5 Simulator
-- Xcode 26.6のSDKはiOS 26.5のため、CIのSimulatorビルド・テストのみ `IPHONEOS_DEPLOYMENT_TARGET=26.5` を指定（プロジェクトの配布用設定は変更しません）
+- Xcode 26.6のSDKはiOS 26.5のため、プロジェクトにSimulator限定の最小iOS 26.5を設定（`IPHONEOS_DEPLOYMENT_TARGET[sdk=iphonesimulator*]`）。実機・配布用の26.6は維持します。コマンドラインの上書きのみではXcodeの実行先解決に反映されませんでした
 - `build-for-testing` でアプリとテストバンドルをビルド
 - `test-without-building` で共有schemeに登録されたユニットテスト・UIテストをすべて実行（除外・リトライなし）
 - ログと `Tests.xcresult` はActionsのArtifactsに14日間保存
