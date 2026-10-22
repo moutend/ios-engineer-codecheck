@@ -89,16 +89,20 @@ private struct RepositorySearchScreen: View {
       if search.phase == .idle && !suggestions.isEmpty {
         Section("検索履歴") {
           ForEach(suggestions, id: \.self) { term in
-            Text(term)
-              .searchCompletion(term)
+            Button(term) {
+              query = term
+              submitSearch()
+            }
+          }
+          .onDelete { offsets in
+            history.remove(suggestionsAt: offsets, matching: query)
           }
           Button("検索履歴を消去", role: .destructive) { history.clear() }
         }
       }
     }
     .onSubmit(of: .search) {
-      history.record(query)
-      search.submit(query)
+      submitSearch()
     }
     .safeAreaInset(edge: .top) {
       VStack(alignment: .leading, spacing: 8) {
@@ -132,6 +136,11 @@ private struct RepositorySearchScreen: View {
     .onChange(of: query) { _, value in
       search.inputChanged(value)
     }
+  }
+
+  private func submitSearch() {
+    history.record(query)
+    search.submit(query)
   }
 
   @ViewBuilder

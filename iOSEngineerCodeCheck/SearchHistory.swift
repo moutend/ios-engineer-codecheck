@@ -37,4 +37,11 @@ final class SearchHistory {
     queries = []
     defaults?.removeObject(forKey: Self.key)
   }
+
+  func remove(suggestionsAt offsets: IndexSet, matching text: String) {
+    let suggestions = suggestions(for: text)
+    let removed = Set(offsets.map { suggestions[$0] })
+    queries.removeAll { removed.contains($0) }
+    defaults?.set(queries, forKey: Self.key)
+  }
 }

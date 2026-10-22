@@ -85,6 +85,7 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
     let suggestion = app.buttons["swift"]
     XCTAssertTrue(suggestion.waitForExistence(timeout: 5))
     suggestion.tap()
+    XCTAssertEqual(field.value as? String, "swift")
     XCTAssertTrue(app.staticTexts["example/swift"].waitForExistence(timeout: 5))
     XCTAssertEqual(app.staticTexts["searchResultCount"].label, "検索結果: 1件")
     field.tap()
@@ -95,6 +96,41 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
     app.launch()
     app.searchFields.firstMatch.tap()
     XCTAssertFalse(app.buttons["swift"].exists)
+    XCTAssertFalse(app.buttons["検索履歴を消去"].exists)
+  }
+
+  func testDeletingFilteredHistorySuggestionPersistsWithoutSearching() {
+    let app = launchApp()
+    search("swift", in: app)
+    XCTAssertTrue(app.staticTexts["searchResultCount"].waitForExistence(timeout: 5))
+    search("kotlin", in: app)
+    XCTAssertTrue(app.staticTexts["searchResultCount"].waitForExistence(timeout: 5))
+    app.terminate()
+    app.launch()
+    let field = app.searchFields.firstMatch
+    XCTAssertTrue(field.waitForExistence(timeout: 5))
+    field.tap()
+    field.typeText("swi")
+    let suggestion = app.buttons["swift"]
+    XCTAssertTrue(suggestion.waitForExistence(timeout: 5))
+    suggestion.swipeLeft()
+    let delete = app.buttons.matching(
+      NSPredicate(format: "label == 'Delete' OR label == '削除'")
+    ).firstMatch
+    XCTAssertTrue(delete.waitForExistence(timeout: 5))
+    delete.tap()
+    XCTAssertFalse(suggestion.exists)
+    XCTAssertEqual(field.value as? String, "swi")
+    XCTAssertFalse(app.staticTexts["searchResultCount"].exists)
+    app.terminate()
+    app.launch()
+    app.searchFields.firstMatch.tap()
+    XCTAssertTrue(app.buttons["kotlin"].waitForExistence(timeout: 5))
+    XCTAssertFalse(app.buttons["swift"].exists)
+    app.buttons["kotlin"].swipeLeft()
+    XCTAssertTrue(delete.waitForExistence(timeout: 5))
+    delete.tap()
+    XCTAssertFalse(app.buttons["kotlin"].exists)
     XCTAssertFalse(app.buttons["検索履歴を消去"].exists)
   }
 
