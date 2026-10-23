@@ -1,6 +1,25 @@
 import Foundation
 import Observation
 
+enum BookmarkSort: CaseIterable {
+  case name
+  case dateAdded
+
+  var title: String {
+    switch self {
+    case .name: "名前"
+    case .dateAdded: "追加日"
+    }
+  }
+
+  func sorted(_ repositories: [Repository]) -> [Repository] {
+    switch self {
+    case .name: repositories.sorted { $0.fullName < $1.fullName }
+    case .dateAdded: Array(repositories.reversed())
+    }
+  }
+}
+
 @MainActor @Observable
 final class BookmarkStore {
   private let persistence: any BookmarkPersistence

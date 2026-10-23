@@ -27,6 +27,48 @@ private final class MemoryBookmarks: BookmarkPersistence {
   }
 }
 
+struct BookmarkSortTests {
+  @Test func nameUsesTheCompleteOwnerAndRepositoryName() {
+    let items = [repository("zebra/aaa"), repository("alpha/zzz"), repository("alpha/aaa")]
+    #expect(
+      BookmarkSort.name.sorted(items).map(\.fullName) == [
+        "alpha/aaa", "alpha/zzz", "zebra/aaa",
+      ])
+  }
+
+  @Test func newestFirstReversesInsertionOrderIncludingEmptyAndSingleItem() {
+    let items = [repository("zebra/aaa"), repository("alpha/zzz"), repository("alpha/aaa")]
+    #expect(BookmarkSort.dateAdded.sorted(items) == Array(items.reversed()))
+    for sort in BookmarkSort.allCases {
+      #expect(sort.sorted([]).isEmpty)
+      #expect(sort.sorted([items[0]]) == [items[0]])
+    }
+  }
+
+  @MainActor
+  @Test func sortingDoesNotChangePersistenceAndReaddingMakesItemNewest() throws {
+    let url = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+      .appending(path: "bookmarks.json")
+    defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+    let persistence = FileBookmarkPersistence(fileURL: url, legacyDefaults: nil)
+    let store = BookmarkStore(persistence: persistence)
+    let first = repository("zebra/aaa")
+    let second = repository("alpha/zzz")
+    store.toggle(first)
+    store.toggle(second)
+    let originalData = try Data(contentsOf: url)
+    #expect(BookmarkSort.name.sorted(store.repositories) == [second, first])
+    #expect(BookmarkSort.dateAdded.sorted(store.repositories) == [second, first])
+    #expect(store.repositories == [first, second])
+    #expect(try Data(contentsOf: url) == originalData)
+    store.toggle(first)
+    store.toggle(first)
+    let reloaded = BookmarkStore(persistence: persistence)
+    #expect(reloaded.repositories == [second, first])
+    #expect(BookmarkSort.dateAdded.sorted(reloaded.repositories) == [first, second])
+  }
+}
+
 @MainActor
 struct BookmarkStoreTests {
   @Test func addRemoveAndRelaunchShareOneSourceOfTruth() {
