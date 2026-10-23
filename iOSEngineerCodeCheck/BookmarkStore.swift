@@ -1,6 +1,25 @@
 import Foundation
 import Observation
 
+enum BookmarkSort: CaseIterable {
+  case name
+  case dateAdded
+
+  var title: String {
+    switch self {
+    case .name: "名前"
+    case .dateAdded: "追加日"
+    }
+  }
+
+  func sorted(_ repositories: [Repository]) -> [Repository] {
+    switch self {
+    case .name: repositories.sorted { $0.fullName < $1.fullName }
+    case .dateAdded: Array(repositories.reversed())
+    }
+  }
+}
+
 @MainActor @Observable
 final class BookmarkStore {
   private let persistence: any BookmarkPersistence
@@ -38,6 +57,17 @@ final class BookmarkStore {
     } else {
       updated.append(repository)
     }
+    save(updated)
+  }
+
+  func remove(ids: Set<Repository.ID>) {
+    guard isLoaded else { return }
+    let updated = repositories.filter { !ids.contains($0.id) }
+    guard updated.count != repositories.count else { return }
+    save(updated)
+  }
+
+  private func save(_ updated: [Repository]) {
     do {
       try persistence.save(updated)
       repositories = updated

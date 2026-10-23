@@ -4,6 +4,7 @@ struct RepositoryTabs: View {
   @State private var search: RepositorySearch
   @State private var bookmarks: BookmarkStore
   @State private var history: SearchHistory
+  @State private var bookmarkSort = BookmarkSort.dateAdded
   @State private var selectedTab = Tab.search
 
   private enum Tab { case search, bookmarks }
@@ -21,15 +22,39 @@ struct RepositoryTabs: View {
   var body: some View {
     TabView(selection: $selectedTab) {
       NavigationStack {
-        RepositoryList(
-          repositories: bookmarks.repositories,
+        BookmarkList(
+          repositories: bookmarkSort.sorted(bookmarks.repositories),
           emptyMessage: bookmarks.isLoaded
-            ? "ブックマークはまだありません" : "ブックマークを読み込めませんでした"
+            ? "ブックマークはまだありません" : "ブックマークを読み込めませんでした",
+          onDelete: bookmarks.remove
         )
         .navigationTitle("Bookmarks")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .top) {
-          if !bookmarks.isLoaded {
+          if bookmarks.isLoaded {
+            HStack(alignment: .firstTextBaseline, spacing: 16) {
+              Text("全\(bookmarks.repositories.count)件")
+                .font(.headline)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("bookmarkCount")
+              Menu {
+                Picker("並び順", selection: $bookmarkSort) {
+                  ForEach(BookmarkSort.allCases, id: \.self) { sort in
+                    Text(sort.title).tag(sort)
+                  }
+                }
+              } label: {
+                Label(bookmarkSort.title, systemImage: "arrow.up.arrow.down")
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              .accessibilityLabel("並び順: \(bookmarkSort.title)")
+              .accessibilityIdentifier("bookmarkSortMenu")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.bar)
+          } else {
             Button("ブックマークの読み込みを再試行", action: bookmarks.reload)
               .padding()
           }

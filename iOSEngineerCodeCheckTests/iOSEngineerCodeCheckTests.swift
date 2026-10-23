@@ -27,8 +27,88 @@ private final class MemoryBookmarks: BookmarkPersistence {
   }
 }
 
+struct BookmarkSortTests {
+  @Test func nameUsesTheCompleteOwnerAndRepositoryName() {
+    let items = [repository("zebra/aaa"), repository("alpha/zzz"), repository("alpha/aaa")]
+    #expect(
+      BookmarkSort.name.sorted(items).map(\.fullName) == [
+        "alpha/aaa", "alpha/zzz", "zebra/aaa",
+      ])
+  }
+
+  @Test func newestFirstReversesInsertionOrderIncludingEmptyAndSingleItem() {
+    let items = [repository("zebra/aaa"), repository("alpha/zzz"), repository("alpha/aaa")]
+    #expect(BookmarkSort.dateAdded.sorted(items) == Array(items.reversed()))
+    for sort in BookmarkSort.allCases {
+      #expect(sort.sorted([]).isEmpty)
+      #expect(sort.sorted([items[0]]) == [items[0]])
+    }
+  }
+
+  @MainActor
+  @Test func sortingDoesNotChangePersistenceAndReaddingMakesItemNewest() throws {
+    let url = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+      .appending(path: "bookmarks.json")
+    defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+    let persistence = FileBookmarkPersistence(fileURL: url, legacyDefaults: nil)
+    let store = BookmarkStore(persistence: persistence)
+    let first = repository("zebra/aaa")
+    let second = repository("alpha/zzz")
+    store.toggle(first)
+    store.toggle(second)
+    let originalData = try Data(contentsOf: url)
+    #expect(BookmarkSort.name.sorted(store.repositories) == [second, first])
+    #expect(BookmarkSort.dateAdded.sorted(store.repositories) == [second, first])
+    #expect(store.repositories == [first, second])
+    #expect(try Data(contentsOf: url) == originalData)
+    store.toggle(first)
+    store.toggle(first)
+    let reloaded = BookmarkStore(persistence: persistence)
+    #expect(reloaded.repositories == [second, first])
+    #expect(BookmarkSort.dateAdded.sorted(reloaded.repositories) == [first, second])
+  }
+}
+
 @MainActor
 struct BookmarkStoreTests {
+  @Test func removeIdentitiesAtomicallyAndPreserveRemainingInsertionOrder() {
+    let persistence = MemoryBookmarks()
+    let items = [repository("z/a"), repository("a/z"), repository("a/a"), repository("b/a")]
+    persistence.saved = items
+    let store = BookmarkStore(persistence: persistence)
+    store.remove(ids: [items[2].id, items[0].id])
+    #expect(store.repositories == [items[1], items[3]])
+    #expect(BookmarkStore(persistence: persistence).repositories == [items[1], items[3]])
+    #expect(persistence.writes == 1)
+    store.remove(ids: [items[0].id])
+    store.remove(ids: [])
+    #expect(persistence.writes == 1)
+    store.remove(ids: Set(store.repositories.map(\.id)))
+    #expect(store.repositories.isEmpty)
+    #expect(persistence.saved.isEmpty)
+  }
+
+  @Test func failedDeletionPreservesAllItemsAndCanRetry() {
+    let persistence = MemoryBookmarks()
+    persistence.saved = [repository("a/a"), repository("b/b")]
+    let store = BookmarkStore(persistence: persistence)
+    let ids = Set(store.repositories.map(\.id))
+    persistence.failsSaving = true
+    store.remove(ids: ids)
+    #expect(store.repositories == persistence.saved)
+    #expect(store.repositories.count == 2)
+    #expect(store.errorMessage != nil)
+    persistence.failsSaving = false
+    store.remove(ids: ids)
+    #expect(store.repositories.isEmpty)
+    #expect(store.errorMessage == nil)
+    persistence.failsLoading = true
+    store.reload()
+    let writes = persistence.writes
+    store.remove(ids: ids)
+    #expect(persistence.writes == writes)
+  }
+
   @Test func addRemoveAndRelaunchShareOneSourceOfTruth() {
     let persistence = MemoryBookmarks()
     let store = BookmarkStore(persistence: persistence)
