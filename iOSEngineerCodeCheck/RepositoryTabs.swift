@@ -22,10 +22,11 @@ struct RepositoryTabs: View {
   var body: some View {
     TabView(selection: $selectedTab) {
       NavigationStack {
-        RepositoryList(
+        BookmarkList(
           repositories: bookmarkSort.sorted(bookmarks.repositories),
           emptyMessage: bookmarks.isLoaded
-            ? "ブックマークはまだありません" : "ブックマークを読み込めませんでした"
+            ? "ブックマークはまだありません" : "ブックマークを読み込めませんでした",
+          onDelete: bookmarks.remove
         )
         .navigationTitle("Bookmarks")
         .navigationBarTitleDisplayMode(.inline)

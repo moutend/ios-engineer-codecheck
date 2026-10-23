@@ -44,6 +44,38 @@ struct RepositoryList<Footer: View>: View {
   }
 }
 
+struct BookmarkList: View {
+  let repositories: [Repository]
+  let emptyMessage: String
+  let onDelete: (Set<Repository.ID>) -> Void
+
+  var body: some View {
+    List {
+      ForEach(repositories) { repository in
+        NavigationLink(value: repository) {
+          RepositoryRow(repository: repository)
+            .padding(.vertical, 4)
+        }
+      }
+      .onDelete { offsets in
+        onDelete(Set(offsets.map { repositories[$0].id }))
+      }
+    }
+    .listStyle(.plain)
+    .navigationDestination(for: Repository.self) { repository in
+      RepositoryDetail(repository: repository)
+    }
+    .overlay {
+      if repositories.isEmpty {
+        Text(emptyMessage)
+          .foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
+          .padding()
+      }
+    }
+  }
+}
+
 private struct RepositoryRow: View {
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   let repository: Repository

@@ -71,6 +71,44 @@ struct BookmarkSortTests {
 
 @MainActor
 struct BookmarkStoreTests {
+  @Test func removeIdentitiesAtomicallyAndPreserveRemainingInsertionOrder() {
+    let persistence = MemoryBookmarks()
+    let items = [repository("z/a"), repository("a/z"), repository("a/a"), repository("b/a")]
+    persistence.saved = items
+    let store = BookmarkStore(persistence: persistence)
+    store.remove(ids: [items[2].id, items[0].id])
+    #expect(store.repositories == [items[1], items[3]])
+    #expect(BookmarkStore(persistence: persistence).repositories == [items[1], items[3]])
+    #expect(persistence.writes == 1)
+    store.remove(ids: [items[0].id])
+    store.remove(ids: [])
+    #expect(persistence.writes == 1)
+    store.remove(ids: Set(store.repositories.map(\.id)))
+    #expect(store.repositories.isEmpty)
+    #expect(persistence.saved.isEmpty)
+  }
+
+  @Test func failedDeletionPreservesAllItemsAndCanRetry() {
+    let persistence = MemoryBookmarks()
+    persistence.saved = [repository("a/a"), repository("b/b")]
+    let store = BookmarkStore(persistence: persistence)
+    let ids = Set(store.repositories.map(\.id))
+    persistence.failsSaving = true
+    store.remove(ids: ids)
+    #expect(store.repositories == persistence.saved)
+    #expect(store.repositories.count == 2)
+    #expect(store.errorMessage != nil)
+    persistence.failsSaving = false
+    store.remove(ids: ids)
+    #expect(store.repositories.isEmpty)
+    #expect(store.errorMessage == nil)
+    persistence.failsLoading = true
+    store.reload()
+    let writes = persistence.writes
+    store.remove(ids: ids)
+    #expect(persistence.writes == writes)
+  }
+
   @Test func addRemoveAndRelaunchShareOneSourceOfTruth() {
     let persistence = MemoryBookmarks()
     let store = BookmarkStore(persistence: persistence)

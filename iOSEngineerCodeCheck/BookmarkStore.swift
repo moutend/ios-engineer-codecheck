@@ -57,6 +57,17 @@ final class BookmarkStore {
     } else {
       updated.append(repository)
     }
+    save(updated)
+  }
+
+  func remove(ids: Set<Repository.ID>) {
+    guard isLoaded else { return }
+    let updated = repositories.filter { !ids.contains($0.id) }
+    guard updated.count != repositories.count else { return }
+    save(updated)
+  }
+
+  private func save(_ updated: [Repository]) {
     do {
       try persistence.save(updated)
       repositories = updated

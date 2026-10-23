@@ -29,6 +29,62 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
     field.typeText(query + "\n")
   }
 
+  func testSwipeDeleteBookmarksInNewestOrder() {
+    verifySwipeDeletion(sortByName: false)
+  }
+
+  func testSwipeDeleteBookmarksInNameOrder() {
+    verifySwipeDeletion(sortByName: true)
+  }
+
+  private func verifySwipeDeletion(sortByName: Bool) {
+    let app = launchApp()
+    search("sorting", in: app)
+    for name in ["example/second", "example/swift"] {
+      XCTAssertTrue(app.staticTexts[name].waitForExistence(timeout: 5))
+      app.staticTexts[name].tap()
+      app.buttons["Add to Bookmark"].tap()
+      app.navigationBars.buttons.firstMatch.tap()
+    }
+    // Keep a search detail visible to verify cross-tab synchronization.
+    let deleted = sortByName ? "example/second" : "example/swift"
+    let remaining = sortByName ? "example/swift" : "example/second"
+    app.staticTexts[deleted].tap()
+    app.tabBars.buttons["Bookmark"].tap()
+    if sortByName {
+      app.buttons["bookmarkSortMenu"].tap()
+      app.buttons["名前"].tap()
+    }
+    let rows = app.staticTexts.matching(identifier: "repositoryName")
+    XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5))
+    XCTAssertEqual(rows.firstMatch.label, deleted)
+    rows.firstMatch.swipeLeft()
+    let delete = app.buttons.matching(NSPredicate(format: "label IN %@", ["Delete", "削除"]))
+      .firstMatch
+    XCTAssertTrue(delete.waitForExistence(timeout: 5))
+    delete.tap()
+    XCTAssertTrue(app.staticTexts[deleted].waitForNonExistence(timeout: 5))
+    XCTAssertEqual(rows.firstMatch.label, remaining)
+    XCTAssertEqual(app.staticTexts["bookmarkCount"].label, "全1件")
+    app.tabBars.buttons["Search"].tap()
+    XCTAssertTrue(app.buttons["Add to Bookmark"].waitForExistence(timeout: 5))
+    app.terminate()
+    app.launch()
+    app.tabBars.buttons["Bookmark"].tap()
+    XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5))
+    XCTAssertEqual(rows.firstMatch.label, remaining)
+    XCTAssertEqual(app.staticTexts["bookmarkCount"].label, "全1件")
+    rows.firstMatch.swipeLeft()
+    XCTAssertTrue(delete.waitForExistence(timeout: 5))
+    delete.tap()
+    XCTAssertTrue(app.staticTexts["ブックマークはまだありません"].waitForExistence(timeout: 5))
+    XCTAssertEqual(app.staticTexts["bookmarkCount"].label, "全0件")
+    app.terminate()
+    app.launch()
+    app.tabBars.buttons["Bookmark"].tap()
+    XCTAssertTrue(app.staticTexts["ブックマークはまだありません"].waitForExistence(timeout: 5))
+  }
+
   func testBookmarkCountSortAndRelaunch() {
     let app = launchApp()
     app.tabBars.buttons["Bookmark"].tap()
