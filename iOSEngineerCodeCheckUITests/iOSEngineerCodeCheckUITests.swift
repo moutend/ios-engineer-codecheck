@@ -29,6 +29,76 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
     field.typeText(query + "\n")
   }
 
+  func testBookmarkCountSortAndRelaunch() {
+    let app = launchApp()
+    app.tabBars.buttons["Bookmark"].tap()
+    let count = app.staticTexts["bookmarkCount"]
+    let menu = app.buttons["bookmarkSortMenu"]
+    XCTAssertTrue(count.waitForExistence(timeout: 5))
+    XCTAssertEqual(count.label, "全0件")
+    XCTAssertTrue(menu.label.contains("追加日"))
+    app.tabBars.buttons["Search"].tap()
+    search("sorting", in: app)
+    // Add in alphabetical order so newest-first and name order differ.
+    for name in ["example/second", "example/swift"] {
+      let row = app.staticTexts[name]
+      XCTAssertTrue(row.waitForExistence(timeout: 5))
+      row.tap()
+      app.buttons["Add to Bookmark"].tap()
+      app.navigationBars.buttons.firstMatch.tap()
+    }
+    app.tabBars.buttons["Bookmark"].tap()
+    let rows = app.staticTexts.matching(identifier: "repositoryName")
+    XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5))
+    XCTAssertEqual(count.label, "全2件")
+    XCTAssertEqual(rows.element(boundBy: 0).label, "example/swift")
+    XCTAssertLessThanOrEqual(count.frame.maxY, rows.firstMatch.frame.minY)
+    XCTAssertLessThanOrEqual(count.frame.maxX, menu.frame.minX)
+    menu.tap()
+    XCTAssertTrue(app.buttons["名前"].exists)
+    XCTAssertTrue(app.buttons["追加日"].exists)
+    app.buttons["名前"].tap()
+    XCTAssertEqual(rows.element(boundBy: 0).label, "example/second")
+    XCTAssertEqual(count.label, "全2件")
+    menu.tap()
+    app.buttons["追加日"].tap()
+    XCTAssertEqual(rows.element(boundBy: 0).label, "example/swift")
+    menu.tap()
+    app.buttons["名前"].tap()
+    app.terminate()
+    app.launch()
+    app.tabBars.buttons["Bookmark"].tap()
+    XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5))
+    XCTAssertTrue(menu.label.contains("追加日"))
+    XCTAssertEqual(rows.element(boundBy: 0).label, "example/swift")
+    XCTAssertEqual(count.label, "全2件")
+    rows.element(boundBy: 0).tap()
+    app.buttons["Remove from Bookmark"].tap()
+    app.navigationBars.buttons.firstMatch.tap()
+    XCTAssertEqual(count.label, "全1件")
+    XCTAssertEqual(rows.firstMatch.label, "example/second")
+    rows.firstMatch.tap()
+    app.buttons["Remove from Bookmark"].tap()
+    app.navigationBars.buttons.firstMatch.tap()
+    XCTAssertEqual(count.label, "全0件")
+    XCTAssertTrue(app.staticTexts["ブックマークはまだありません"].exists)
+  }
+
+  func testBookmarkHeaderAtLargestTextSize() {
+    let app = launchApp(largeText: true)
+    app.tabBars.buttons["Bookmark"].tap()
+    let count = app.staticTexts["bookmarkCount"]
+    let menu = app.buttons["bookmarkSortMenu"]
+    XCTAssertTrue(count.waitForExistence(timeout: 5))
+    XCTAssertTrue(count.isHittable)
+    XCTAssertTrue(menu.isHittable)
+    XCTAssertLessThanOrEqual(count.frame.maxX, menu.frame.minX)
+    XCTAssertLessThanOrEqual(menu.frame.maxX, app.frame.maxX)
+    menu.tap()
+    app.buttons["名前"].tap()
+    XCTAssertTrue(menu.label.contains("名前"))
+  }
+
   func testDisplayLimitNoticeReplacesLoadMoreAtEndOfResults() {
     let app = launchApp()
     search("display-limit", in: app)
@@ -231,6 +301,7 @@ final class IOSEngineerCodeCheckUITests: XCTestCase {
     app.tabBars.buttons["Bookmark"].tap()
     XCTAssertTrue(app.staticTexts["ブックマークを読み込めませんでした"].waitForExistence(timeout: 5))
     XCTAssertFalse(app.staticTexts["ブックマークはまだありません"].exists)
+    XCTAssertFalse(app.staticTexts["bookmarkCount"].exists)
     app.buttons["ブックマークの読み込みを再試行"].tap()
     XCTAssertTrue(app.staticTexts["ブックマークはまだありません"].waitForExistence(timeout: 5))
     app.tabBars.buttons["Search"].tap()
