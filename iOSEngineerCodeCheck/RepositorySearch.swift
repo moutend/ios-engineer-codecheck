@@ -4,10 +4,43 @@ import Observation
 struct RepositoryPage: Sendable {
   let repositories: [Repository]
   let hasMore: Bool
+  let totalCount: Int
+}
+
+enum RepositorySort: String, CaseIterable, Sendable {
+  case bestMatch, starsDescending, starsAscending, forksDescending, forksAscending
+  case updatedDescending, updatedAscending
+
+  var title: String {
+    switch self {
+    case .bestMatch: "関連度順"
+    case .starsDescending: "スター数が多い順"
+    case .starsAscending: "スター数が少ない順"
+    case .forksDescending: "フォーク数が多い順"
+    case .forksAscending: "フォーク数が少ない順"
+    case .updatedDescending: "更新が新しい順"
+    case .updatedAscending: "更新が古い順"
+    }
+  }
+
+  var queryItems: [URLQueryItem] {
+    let field: String
+    let order: String
+    switch self {
+    case .bestMatch: return []
+    case .starsDescending: (field, order) = ("stars", "desc")
+    case .starsAscending: (field, order) = ("stars", "asc")
+    case .forksDescending: (field, order) = ("forks", "desc")
+    case .forksAscending: (field, order) = ("forks", "asc")
+    case .updatedDescending: (field, order) = ("updated", "desc")
+    case .updatedAscending: (field, order) = ("updated", "asc")
+    }
+    return [URLQueryItem(name: "sort", value: field), URLQueryItem(name: "order", value: order)]
+  }
 }
 
 protocol RepositorySearching: Sendable {
-  func search(query: String, page: Int) async throws -> RepositoryPage
+  func search(query: String, page: Int, sort: RepositorySort) async throws -> RepositoryPage
 }
 
 struct GitHubRepositoryService: RepositorySearching {
@@ -17,9 +50,11 @@ struct GitHubRepositoryService: RepositorySearching {
     self.session = session
   }
 
-  func search(query: String, page: Int) async throws -> RepositoryPage {
-    let pageSize = 30
-    guard (1...34).contains(page) else { throw SearchError.invalidURL }
+  func search(
+    query: String, page: Int, sort: RepositorySort = .bestMatch
+  ) async throws -> RepositoryPage {
+    let pageSize = 50
+    guard (1...20).contains(page) else { throw SearchError.invalidURL }
     var components = URLComponents()
     components.scheme = "https"
     components.host = "api.github.com"
@@ -29,6 +64,7 @@ struct GitHubRepositoryService: RepositorySearching {
       URLQueryItem(name: "page", value: String(page)),
       URLQueryItem(name: "per_page", value: String(pageSize)),
     ]
+    components.queryItems?.append(contentsOf: sort.queryItems)
     // Escape literal plus signs for servers that interpret query strings as form data.
     components.percentEncodedQuery = components.percentEncodedQuery?.replacingOccurrences(
       of: "+", with: "%2B")
@@ -47,7 +83,8 @@ struct GitHubRepositoryService: RepositorySearching {
       repositories: items.filter { seen.insert($0.id).inserted },
       // GitHub exposes at most 1,000 matches. Use the server count, not the
       // deduplicated row count, and stop if the server returns an empty page.
-      hasMore: !items.isEmpty && page * pageSize < min(result.totalCount, 1_000))
+      hasMore: !items.isEmpty && page * pageSize < min(result.totalCount, 1_000),
+      totalCount: result.totalCount)
   }
 
   private struct SearchResponse: Decodable {
@@ -90,7 +127,13 @@ final class RepositorySearch {
   private var submittedQuery: String?
   private var task: Task<Void, Never>?
   private(set) var repositories: [Repository] = []
+  private(set) var sort: RepositorySort = .bestMatch
+  private(set) var totalCount: Int?
   private(set) var phase: Phase = .idle
+
+  var hasReachedDisplayLimit: Bool {
+    phase == .loaded && !hasMore && repositories.count >= 1_000
+  }
 
   init(service: any RepositorySearching) {
     self.service = service
@@ -108,6 +151,15 @@ final class RepositorySearch {
   }
 
   @discardableResult
+  func changeSort(_ value: RepositorySort) -> Task<Void, Never>? {
+    guard value != sort else { return nil }
+    sort = value
+    // Re-fetch the whole search from page one, never just sort the loaded rows.
+    guard let query = submittedQuery else { return nil }
+    return submit(query)
+  }
+
+  @discardableResult
   func loadMore() -> Task<Void, Never>? {
     guard phase == .loaded, hasMore, additionalPhase != .loading,
       let query = submittedQuery
@@ -119,14 +171,16 @@ final class RepositorySearch {
   private func request(query: String, page: Int) -> Task<Void, Never> {
     let id = requestID
     let service = service
+    let sort = sort
     let task = Task { [weak self] in
       do {
-        let result = try await service.search(query: query, page: page)
+        let result = try await service.search(query: query, page: page, sort: sort)
         try Task.checkCancellation()
         guard let self, self.requestID == id else { return }
         var seen = Set(self.repositories.map(\.id))
         self.repositories.append(
           contentsOf: result.repositories.filter { seen.insert($0.id).inserted })
+        self.totalCount = result.totalCount
         self.nextPage = page + 1
         self.hasMore = result.hasMore
         self.phase = .loaded
@@ -162,6 +216,7 @@ final class RepositorySearch {
     submittedQuery = nil
     requestID = UUID()
     repositories = []
+    totalCount = nil
     phase = .idle
     additionalPhase = .idle
     nextPage = 1

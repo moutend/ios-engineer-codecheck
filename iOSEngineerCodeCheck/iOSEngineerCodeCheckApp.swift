@@ -13,11 +13,13 @@ struct IOSEngineerCodeCheckApp: App {
     #if DEBUG
       if let testID = ProcessInfo.processInfo.environment["BOOKMARK_UI_TEST_ID"] {
         RepositoryTabs(
-          service: UITestRepositoryService(), persistence: uiTestPersistence(testID: testID))
+          service: UITestRepositoryService(), persistence: uiTestPersistence(testID: testID),
+          historyDefaults: UserDefaults(suiteName: "SearchHistoryUITests.\(testID)"))
       } else if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
         // The unit-test host must not read or migrate a developer's bookmarks.
         RepositoryTabs(
-          service: PreviewRepositoryService(), persistence: PreviewBookmarkPersistence())
+          service: PreviewRepositoryService(), persistence: PreviewBookmarkPersistence(),
+          historyDefaults: nil)
       } else {
         RepositoryTabs()
       }
@@ -44,14 +46,16 @@ struct IOSEngineerCodeCheckApp: App {
 
 #if DEBUG
   struct PreviewRepositoryService: RepositorySearching {
-    func search(query: String, page: Int) async throws -> RepositoryPage {
+    func search(
+      query: String, page: Int, sort: RepositorySort = .bestMatch
+    ) async throws -> RepositoryPage {
       RepositoryPage(
         repositories: [
           Repository(
             fullName: "example/swift", language: "Swift", stargazersCount: 42,
             watchersCount: 10, forksCount: 3, openIssuesCount: 2,
             owner: .init(avatarUrl: ""))
-        ], hasMore: false)
+        ], hasMore: false, totalCount: 1)
     }
   }
 
@@ -65,12 +69,26 @@ struct IOSEngineerCodeCheckApp: App {
   actor UITestRepositoryService: RepositorySearching {
     private var failedPage = false
 
-    func search(query: String, page: Int) async throws -> RepositoryPage {
+    func search(
+      query: String, page: Int, sort: RepositorySort = .bestMatch
+    ) async throws -> RepositoryPage {
+      if query == "display-limit" {
+        return displayLimitPage(page: page)
+      }
+      if query == "sorting" {
+        let first = try await PreviewRepositoryService().search(query: query, page: page)
+        let second = Repository(
+          fullName: "example/second", language: "Swift", stargazersCount: 7,
+          watchersCount: 1, forksCount: 1, openIssuesCount: 0, owner: .init(avatarUrl: ""))
+        let items =
+          sort == .starsAscending ? [second] + first.repositories : first.repositories + [second]
+        return RepositoryPage(repositories: items, hasMore: false, totalCount: 2)
+      }
       if query == "pagination" {
         if page == 1 {
           failedPage = false
           let first = try await PreviewRepositoryService().search(query: query, page: page)
-          return RepositoryPage(repositories: first.repositories, hasMore: true)
+          return RepositoryPage(repositories: first.repositories, hasMore: true, totalCount: 2)
         }
         try await Task.sleep(for: .seconds(2))
         if !failedPage {
@@ -81,10 +99,11 @@ struct IOSEngineerCodeCheckApp: App {
         let second = Repository(
           fullName: "example/second", language: "Swift", stargazersCount: 7,
           watchersCount: 1, forksCount: 1, openIssuesCount: 0, owner: .init(avatarUrl: ""))
-        return RepositoryPage(repositories: first.repositories + [second], hasMore: false)
+        return RepositoryPage(
+          repositories: first.repositories + [second], hasMore: false, totalCount: 2)
       }
       switch query {
-      case "empty": return RepositoryPage(repositories: [], hasMore: false)
+      case "empty": return RepositoryPage(repositories: [], hasMore: false, totalCount: 0)
       case "failure": throw URLError(.notConnectedToInternet)
       case "slow":
         try await Task.sleep(for: .seconds(30))
@@ -97,9 +116,20 @@ struct IOSEngineerCodeCheckApp: App {
               language: "JavaScript", stargazersCount: 123_456_789,
               watchersCount: 987_654_321, forksCount: 123_456_789,
               openIssuesCount: 987_654_321, owner: .init(avatarUrl: ""))
-          ], hasMore: false)
+          ], hasMore: false, totalCount: 1)
       default: return try await PreviewRepositoryService().search(query: query, page: page)
       }
+    }
+
+    private func displayLimitPage(page: Int) -> RepositoryPage {
+      // Reach the real row-count boundary in two requests for UI testing.
+      let indices = page == 1 ? 0..<1 : 1..<1_000
+      let items = indices.map { index in
+        Repository(
+          fullName: "example/result-\(index)", language: "Swift", stargazersCount: index,
+          watchersCount: 0, forksCount: 0, openIssuesCount: 0, owner: .init(avatarUrl: ""))
+      }
+      return RepositoryPage(repositories: items, hasMore: page == 1, totalCount: 2_000)
     }
   }
 
